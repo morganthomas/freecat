@@ -24,7 +24,7 @@ patToExpr (RawSymbolPat s) = RawSymbolExpr s
 patToExpr (RawAppPat p q) = RawAppExpr (patToExpr p) (patToExpr q)
 
 data RawTypeAssertion = RawTypeAssertion RawSymbol Expr
-data RawEquation = RawEquation [RawTypeAssertion] RawPatttern RawExpr
+data RawEquation = RawEquation [RawTypeAssertion] RawPattern RawExpr
 
 data RawDeclaration =
    RawTypeDeclaration RawTypeAssertion
@@ -35,17 +35,17 @@ type RawContext = [RawDeclaration]
 -- TODO: will use sequent types?
 data SequentAssertion =
    SequentTypeAssertion Expr Expr
- | SequentPatternAssertion Pat
+ | SequentPatternAssertion Pattern
  | SequentReductionAssertion Expr Expr
  | SequentContextAssertion
 
-data Sequent = Sequent Context Assertion
+data Sequent = Sequent RawContext SequentAssertion
 
 -- Annotated stuff
 
 data Symbol = Symbol {
   name :: String,
-  type :: Expr,
+  definedType :: Expr,
   -- lead symbol of each equation is this symbol
   equations :: [Equation],
   nativeContext :: Context
@@ -70,7 +70,6 @@ data Expr =
 data Context = Context {
   uri :: Maybe String,
   parentContext :: Maybe Context,
-  declarations :: Map String Declaration,
+  declarations :: Map String Symbol,
   importedSymbols :: Map String Symbol
 }
-
