@@ -25,10 +25,14 @@ patToExpr (RawAppPat p q) = RawAppExpr (patToExpr p) (patToExpr q)
 
 data RawTypeAssertion = RawTypeAssertion RawSymbol Expr
 data RawEquation = RawEquation [RawTypeAssertion] RawPattern RawExpr
+data RawImport =
+   RawImportAsSymbol String String -- uri, name
+ | RawImportSelectively String [String] -- uri, symbols to import
 
 data RawDeclaration =
    RawTypeDeclaration RawTypeAssertion
  | RawEquationDeclaration RawEquation
+ | RawImportDeclaration RawImport
 
 type RawContext = [RawDeclaration]
 
