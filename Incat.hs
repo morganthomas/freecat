@@ -36,15 +36,6 @@ data RawDeclaration =
 
 type RawContext = [RawDeclaration]
 
--- TODO: will use sequent types?
-data SequentAssertion =
-   SequentTypeAssertion Expr Expr
- | SequentPatternAssertion Pattern
- | SequentReductionAssertion Expr Expr
- | SequentContextAssertion
-
-data Sequent = Sequent RawContext SequentAssertion
-
 -- Annotated stuff
 
 data Symbol = Symbol {
