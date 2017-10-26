@@ -69,3 +69,9 @@ data Context = Context {
   declarations :: Map String Symbol,
   importedSymbols :: Map String Symbol
 }
+
+data IncatState = IncatState {
+  nextRuntimeId :: Integer,
+  -- Contains all contexts loaded from a uri, keyed by uri
+  loadedContexts :: Map String Context
+}
