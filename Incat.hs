@@ -36,7 +36,7 @@ data RawDeclaration =
 
 type RawContext = [RawDeclaration]
 
--- Annotated stuff
+-- Basic semantic structures
 
 data Symbol = Symbol {
   name :: String,
@@ -63,6 +63,7 @@ data Expr =
  | FunctionTypeExpr Symbol Expr Expr
 
 data Context = Context {
+  runtimeId :: Integer,
   uri :: Maybe String,
   parentContext :: Maybe Context,
   declarations :: Map String Symbol,
