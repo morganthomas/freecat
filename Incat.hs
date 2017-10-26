@@ -63,7 +63,7 @@ data Expr =
  | FunctionTypeExpr Symbol Expr Expr
 
 data Context = Context {
-  runtimeId :: Integer,
+  contextId :: Integer,
   uri :: Maybe String,
   parentContext :: Maybe Context,
   declarations :: Map String Symbol,
@@ -71,7 +71,7 @@ data Context = Context {
 }
 
 data IncatState = IncatState {
-  nextRuntimeId :: Integer,
+  nextContextId :: Integer,
   -- Contains all contexts loaded from a uri, keyed by uri
   loadedContexts :: Map String Context
 }
