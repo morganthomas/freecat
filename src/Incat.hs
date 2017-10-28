@@ -13,7 +13,8 @@ data RawExpr =
    RawSymbolExpr RawSymbol
  | RawAppExpr RawExpr RawExpr
  | RawLambdaExpr RawSymbol RawExpr RawExpr
- | RawFunctionTypeExpr RawSymbol RawExpr RawExpr
+ | RawFunctionTypeExpr RawExpr RawExpr
+ | RawDependentFunctionTypeExpr RawSymbol RawExpr RawExpr
 
 data RawPattern =
    RawSymbolPat RawSymbol
@@ -60,7 +61,8 @@ data Expr =
    SymbolExpr Symbol
  | AppExpr Expr Expr
  | LambdaExpr Symbol Expr Expr
- | FunctionTypeExpr Symbol Expr Expr
+ | FunctionTypeExpr Expr Expr
+ | DependentFunctionTypeExpr Symbol Expr Expr
 
 data Context = Context {
   contextId :: Integer,
