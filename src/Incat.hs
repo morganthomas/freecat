@@ -144,3 +144,8 @@ leadSymbol (DependentFunctionTypeExpr _ _ _) = Left (Error "tried to find a lead
 -- if one matches, and throws an error if no patterns match. Assumes the
 -- subexpressions of the given expr are normalized.
 evaluatePatternMatch :: Context -> [Definition] -> Expr -> Either Error Expr
+
+-- Takes an expr and a pattern and returns an augmented context in which the
+-- pattern variables are defined according to the unification of expr and pattern.
+-- That assumes expr can be unified with pattern. If not returns nothing.
+unifyExprWithPattern :: Context -> Expr -> Pattern -> Maybe Context
