@@ -141,5 +141,6 @@ leadSymbol (DependentFunctionTypeExpr _ _ _) = Left (Error "tried to find a lead
 
 -- Checks if the given expr matches any of the given pattern match definitions.
 -- Returns the result of evaluating the expr against the first matching definition
--- if one matches, and throws an error if no patterns match.
+-- if one matches, and throws an error if no patterns match. Assumes the
+-- subexpressions of the given expr are normalized.
 evaluatePatternMatch :: Context -> [Definition] -> Expr -> Either Error Expr
