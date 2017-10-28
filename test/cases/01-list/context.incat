@@ -17,9 +17,9 @@ rab : Bar
 zab : Bar
 
 squee : Foo -> Bar
-squee foo = oof
-squee bar = rab
-squee baz = zab
+squee foo => oof
+squee bar => rab
+squee baz => zab
 
 example : List Bar
-example = map Foo Bar (\x : Foo -> squee x) (cons Foo foo (cons Foo bar (cons Foo baz (empty Foo))))
+example = map Foo Bar (\x : Foo => squee x) (cons Foo foo (cons Foo bar (cons Foo baz (empty Foo))))
