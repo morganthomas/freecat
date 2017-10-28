@@ -1,4 +1,5 @@
-module Incat where
+-- Core syntactic and semantic definitions
+module Incat.Core where
 
 import Data.Map (Map)
 
