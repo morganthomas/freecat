@@ -3,6 +3,15 @@ module Incat.Core where
 
 import Data.Map (Map)
 
+data LexicalToken =
+    SymbolToken String
+  | ColonToken
+  | ThinArrow
+  | FatArrow
+  | OpenParen
+  | CloseParen
+  | Backslash
+
 -- Parse trees
 
 type RawSymbol = String
