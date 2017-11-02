@@ -57,6 +57,9 @@ data Symbol = Symbol {
   nativeContext :: Context
 }
 
+instance Eq Symbol where
+  s == t = name s == name t && nativeContext s == nativeContext t
+
 data Definition =
    ConstantDef Expr
  | PatternDef [VariableDeclaration] Pattern Expr
@@ -81,6 +84,8 @@ data Context = Context {
   importedSymbols :: Map String Symbol
 }
 
+instance Eq Context where
+
 data Error = Error String
 
 evaluate :: Context -> Expr -> Either Error Expr
@@ -102,7 +107,7 @@ evaluate c (AppExpr e0 e1) =
         do s <- leadSymbol e0e
            evaluatePatternMatch c (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
-        evaluate (simplyAugmentContext c (name s) (definedType s) e1e) d
+        evaluate (simplyAugmentContext c (name s) (definedType s) [ConstantDef e1e]) d
       FunctionTypeExpr _ _ -> Left (Error "cannot have a function type on the left hand side of a function application")
       DependentFunctionTypeExpr _ _ _ -> Left (Error "cannot have a function type on the left hand side of a function application")
 evaluate c (LambdaExpr s t d) = (LambdaExpr s t d)
@@ -115,7 +120,7 @@ evaluate c (DependentFunctionTypeExpr s a b) = (DependentFunctionTypeExpr s a b)
 -- Creates a new context which has the given context as parent and has a symbol
 -- with the given name, type, and constant definition.
 simplyAugmentContext :: Context -> String -> Expr -> Expr -> Context
-simplyAugmentContext parentContext vName vType vDef =
+simplyAugmentContext parentContext vName vType vDefs =
   let newContext =
         Context {
           uri = Nothing,
@@ -126,7 +131,7 @@ simplyAugmentContext parentContext vName vType vDef =
         Symbol {
           name = vName,
           definedType = vType,
-          definitions = [ConstantDef vDef],
+          definitions = vDefs,
           nativeContext = newContext
         }
     in newContext
@@ -148,4 +153,22 @@ evaluatePatternMatch :: Context -> [Definition] -> Expr -> Either Error Expr
 -- Takes an expr and a pattern and returns an augmented context in which the
 -- pattern variables are defined according to the unification of expr and pattern.
 -- That assumes expr can be unified with pattern. If not returns nothing.
+-- Assumes expr is evaluated (i.e. in normal form).
 unifyExprWithPattern :: Context -> Expr -> Pattern -> Maybe Context
+unifyExprWithPattern c (AppExpr (SymbolExpr s) e) (AppPat (SymbolPat t) p) =
+  if s == t
+    then unifyExprWithPattern c e p
+    else Nothing
+unifyExprWithPattern c0 (AppExpr e f) (AppPat p q) =
+  do c1 <- unifyExprWithPattern c0 e p
+     c2 <- unifyExprWithPattern c1 f q
+     return c2
+unifyExprWithPattern c (SymbolExpr s) (SymbolPat t) =
+  if exprsAreEquivalent c (definedType s) (definedType t)
+    then Just (simplyAugmentContext c (name t) (definedType t) (definitions s))
+    else Nothing
+unifyExprWithPattern _ _ _ = Nothing
+
+-- Returns whether the provided exprs are syntactically equivalent
+-- in the given context.
+exprsAreEquivalent :: Context -> Expr -> Expr -> Bool
