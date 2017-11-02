@@ -13,7 +13,9 @@ data LexicalToken =
   | CloseParen
   | Backslash
 
+--
 -- Parse trees
+--
 
 type RawSymbol = String
 
@@ -48,7 +50,9 @@ data RawDeclaration =
 
 type RawContext = [RawDeclaration]
 
+--
 -- Basic semantic structures
+--
 
 data Symbol = Symbol {
   name :: String,
@@ -86,9 +90,22 @@ data Context = Context {
   importedSymbols :: Map String Symbol
 }
 
+rootContext :: Context
+rootContext =
+  Context {
+    uri = Nothing,
+    parentContext = Nothing,
+    declarations = empty,
+    importedSymbols = empty
+  }
+
 instance Eq Context where
 
 data Error = Error String
+
+--
+-- Evaluation
+--
 
 evaluate :: Context -> Expr -> Either Error Expr
 evaluate c (SymbolExpr s) =
@@ -176,3 +193,9 @@ unifyExprWithPattern c (SymbolExpr s) (SymbolPat t) =
     then Just (simplyAugmentContext c (name t) (definedType t) (definitions s))
     else Nothing
 unifyExprWithPattern _ _ _ = Nothing
+
+--
+-- Constructing semantic objects from raw objects while checking coherence
+--
+
+digestContext :: RawContext -> Either Error Context
