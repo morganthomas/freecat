@@ -103,6 +103,8 @@ instance Eq Context where
 
 data Error = Error String
 
+-- TODO: Define an Incat monad which deals with error handling, etc.
+
 --
 -- Evaluation
 --
