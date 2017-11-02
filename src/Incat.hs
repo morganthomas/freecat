@@ -1,7 +1,7 @@
 -- Core syntactic and semantic definitions
 module Incat.Core where
 
-import Data.Map (Map, singleton)
+import Data.Map (Map, singleton, empty)
 
 data LexicalToken =
     SymbolToken String
@@ -92,9 +92,8 @@ data Error = Error String
 evaluate :: Context -> Expr -> Either Error Expr
 evaluate c (SymbolExpr s) =
   case definitions s of
-    [] -> Right s
     (ConstantDef e : _) -> evaluate c e
-    _ -> s
+    _ -> Right (SymbolExpr s)
 evaluate c (AppExpr e0 e1) =
   do e0e <- evaluate c e0
      e1e <- evaluate c e1
@@ -111,22 +110,23 @@ evaluate c (AppExpr e0 e1) =
         evaluate (simplyAugmentContext c (name s) (definedType s) [ConstantDef e1e]) d
       FunctionTypeExpr _ _ -> Left (Error "cannot have a function type on the left hand side of a function application")
       DependentFunctionTypeExpr _ _ _ -> Left (Error "cannot have a function type on the left hand side of a function application")
-evaluate c (LambdaExpr s t d) = (LambdaExpr s t d)
+evaluate c (LambdaExpr s t d) = Right (LambdaExpr s t d)
 evaluate c (FunctionTypeExpr a b) =
   do ae <- evaluate c a
      be <- evaluate c b
      return (FunctionTypeExpr ae be)
-evaluate c (DependentFunctionTypeExpr s a b) = (DependentFunctionTypeExpr s a b)
+evaluate c (DependentFunctionTypeExpr s a b) = Right (DependentFunctionTypeExpr s a b)
 
 -- Creates a new context which has the given context as parent and has a symbol
--- with the given name, type, and constant definition.
-simplyAugmentContext :: Context -> String -> Expr -> Expr -> Context
+-- with the given name, type, and definitions.
+simplyAugmentContext :: Context -> String -> Expr -> [Definition] -> Context
 simplyAugmentContext parentContext vName vType vDefs =
   let newContext =
         Context {
           uri = Nothing,
           parentContext = Just parentContext,
-          declarations = singleton vName newSymbol
+          declarations = singleton vName newSymbol,
+          importedSymbols = empty
         }
       newSymbol =
         Symbol {
@@ -141,7 +141,7 @@ simplyAugmentContext parentContext vName vType vDefs =
 leadSymbol :: Expr -> Either Error Symbol
 leadSymbol (SymbolExpr s) = Right s
 leadSymbol (AppExpr e0 e1) = leadSymbol e0
-leadSymbol (LambdaExpr _ _) = Left (Error "tried to find a lead symbol but found a lambda instead")
+leadSymbol (LambdaExpr _ _ _) = Left (Error "tried to find a lead symbol but found a lambda instead")
 leadSymbol (FunctionTypeExpr _ _) = Left (Error "tried to find a lead symbol but found a function type instead")
 leadSymbol (DependentFunctionTypeExpr _ _ _) = Left (Error "tried to find a lead symbol but found a function type instead")
 
@@ -150,6 +150,12 @@ leadSymbol (DependentFunctionTypeExpr _ _ _) = Left (Error "tried to find a lead
 -- if one matches, and throws an error if no patterns match. Assumes the
 -- subexpressions of the given expr are normalized.
 evaluatePatternMatch :: Context -> [Definition] -> Expr -> Either Error Expr
+evaluatePatternMatch c [] e = Left (Error "pattern match failure")
+evaluatePatternMatch c ((ConstantDef _):_) e = Left (Error "expected pattern match def but got constant def")
+evaluatePatternMatch c0 ((PatternDef _ p d):defs) e =
+  case unifyExprWithPattern c0 e p of
+    Just c1 -> evaluate c1 d
+    Nothing -> evaluatePatternMatch c0 defs e
 
 -- Takes an expr and a pattern and returns an augmented context in which the
 -- pattern variables are defined according to the unification of expr and pattern.
