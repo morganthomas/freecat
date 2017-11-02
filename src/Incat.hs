@@ -76,6 +76,7 @@ data Expr =
  | LambdaExpr Symbol Expr Expr
  | FunctionTypeExpr Expr Expr
  | DependentFunctionTypeExpr Symbol Expr Expr
+ deriving (Eq)
 
 data Context = Context {
   uri :: Maybe String,
@@ -164,11 +165,7 @@ unifyExprWithPattern c0 (AppExpr e f) (AppPat p q) =
      c2 <- unifyExprWithPattern c1 f q
      return c2
 unifyExprWithPattern c (SymbolExpr s) (SymbolPat t) =
-  if exprsAreEquivalent c (definedType s) (definedType t)
+  if definedType s == definedType t -- TODO: check whether evaluated defined types are alpha convertible
     then Just (simplyAugmentContext c (name t) (definedType t) (definitions s))
     else Nothing
 unifyExprWithPattern _ _ _ = Nothing
-
--- Returns whether the provided exprs are syntactically equivalent
--- in the given context.
-exprsAreEquivalent :: Context -> Expr -> Expr -> Bool
