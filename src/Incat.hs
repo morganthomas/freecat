@@ -1,4 +1,5 @@
 -- Core syntactic and semantic definitions
+-- The central processing unit
 module Incat.Core where
 
 import Data.Map (Map, singleton, empty)
