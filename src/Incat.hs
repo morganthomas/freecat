@@ -109,8 +109,8 @@ evaluate c (AppExpr e0 e1) =
            evaluatePatternMatch c (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
         evaluate (simplyAugmentContext c (name s) (definedType s) [ConstantDef e1e]) d
-      FunctionTypeExpr _ _ -> Left (Error "cannot have a function type on the left hand side of a function application")
-      DependentFunctionTypeExpr _ _ _ -> Left (Error "cannot have a function type on the left hand side of a function application")
+      FunctionTypeExpr _ _ -> Left (Error "cannot evaluate a function type on the left hand side of a function application")
+      DependentFunctionTypeExpr _ _ _ -> Left (Error "cannot evaluate a function type on the left hand side of a function application")
 evaluate c (LambdaExpr s t d) = Right (LambdaExpr s t d)
 evaluate c (FunctionTypeExpr a b) =
   do ae <- evaluate c a
