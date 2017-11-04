@@ -2,7 +2,7 @@
 -- The central processing unit
 module Incat.Core where
 
-import Data.Map (Map, singleton, empty)
+import Data.Map (Map, insert, empty)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Except as E
@@ -106,6 +106,7 @@ data Context = Context {
   contextId :: Integer,
   uri :: Maybe String,
   parentContext :: Maybe Context,
+  -- includes declarations from parent context
   declarations :: Map String Symbol,
   importedSymbols :: Map String Symbol
 }
@@ -199,7 +200,7 @@ _simplyAugmentContext parentContext vName vType vDefs contextId =
           contextId = contextId,
           uri = Nothing,
           parentContext = Just parentContext,
-          declarations = singleton vName newSymbol,
+          declarations = insert vName newSymbol (declarations parentContext),
           importedSymbols = empty
         }
       newSymbol =
@@ -263,4 +264,6 @@ unifyExprWithPattern _ _ _ = return Nothing
 -- Constructing semantic objects from raw objects while checking coherence
 --
 
---digestContext :: RawContext -> Either Error Context
+--digestContext :: RawContext -> Incat Context
+--digestExpr :: Context -> RawExpr -> Incat Expr
+--digestPattern :: Context -> RawPattern -> Incat Pattern
