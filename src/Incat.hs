@@ -126,25 +126,25 @@ data Error =
 
 type Incat = StateT IncatState (E.ExceptT Error IO)
 
-throwE :: Error -> Incat a
-throwE e = lift (E.throwE e)
+barf :: Error -> Incat a
+barf e = lift (E.throwE e)
 
 --
 -- Evaluation
 --
 
-evaluate :: Context -> Expr -> Either Error Expr
+evaluate :: Context -> Expr -> Incat Expr
 evaluate c (SymbolExpr s) =
   case definitions s of
     (ConstantDef e : _) -> evaluate c e
-    _ -> Right (SymbolExpr s)
+    _ -> return (SymbolExpr s)
 evaluate c (AppExpr e0 e1) =
   do e0e <- evaluate c e0
      e1e <- evaluate c e1
      case e0e of
       SymbolExpr s ->
         case definitions s of
-          [] -> Right (AppExpr e0e e1e)
+          [] -> return (AppExpr e0e e1e)
           (ConstantDef d : _) -> evaluate c (AppExpr d e1e)
           defs -> evaluatePatternMatch c defs (AppExpr e0e e1e)
       AppExpr _ _ ->
@@ -152,14 +152,14 @@ evaluate c (AppExpr e0 e1) =
            evaluatePatternMatch c (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
         evaluate (simplyAugmentContext c (name s) (definedType s) [ConstantDef e1e]) d
-      FunctionTypeExpr _ _ -> Left ErrFunctionTypeOnAppLHS
-      DependentFunctionTypeExpr _ _ _ -> Left ErrFunctionTypeOnAppLHS
-evaluate c (LambdaExpr s t d) = Right (LambdaExpr s t d)
+      FunctionTypeExpr _ _ -> barf ErrFunctionTypeOnAppLHS
+      DependentFunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
+evaluate c (LambdaExpr s t d) = return (LambdaExpr s t d)
 evaluate c (FunctionTypeExpr a b) =
   do ae <- evaluate c a
      be <- evaluate c b
      return (FunctionTypeExpr ae be)
-evaluate c (DependentFunctionTypeExpr s a b) = Right (DependentFunctionTypeExpr s a b)
+evaluate c (DependentFunctionTypeExpr s a b) = return (DependentFunctionTypeExpr s a b)
 
 -- Creates a new context which has the given context as parent and has a symbol
 -- with the given name, type, and definitions.
@@ -182,20 +182,20 @@ simplyAugmentContext parentContext vName vType vDefs =
     in newContext
 
 -- Gathers the lead symbol in a normalized application expression.
-leadSymbol :: Expr -> Either Error Symbol
-leadSymbol (SymbolExpr s) = Right s
+leadSymbol :: Expr -> Incat Symbol
+leadSymbol (SymbolExpr s) = return s
 leadSymbol (AppExpr e0 e1) = leadSymbol e0
-leadSymbol (LambdaExpr _ _ _) = Left ErrExpectedLeadSymbolFoundLambda
-leadSymbol (FunctionTypeExpr _ _) = Left ErrExpectedLeadSymbolFoundFunctionType
-leadSymbol (DependentFunctionTypeExpr _ _ _) = Left ErrExpectedLeadSymbolFoundFunctionType
+leadSymbol (LambdaExpr _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
+leadSymbol (FunctionTypeExpr _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
+leadSymbol (DependentFunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
 
 -- Checks if the given expr matches any of the given pattern match definitions.
 -- Returns the result of evaluating the expr against the first matching definition
 -- if one matches, and throws an error if no patterns match. Assumes the
 -- subexpressions of the given expr are normalized.
-evaluatePatternMatch :: Context -> [Definition] -> Expr -> Either Error Expr
-evaluatePatternMatch c [] e = Left ErrNoPatternMatch
-evaluatePatternMatch c ((ConstantDef _):_) e = Left ErrExpectedPatternMatchDefGotConstantDef
+evaluatePatternMatch :: Context -> [Definition] -> Expr -> Incat Expr
+evaluatePatternMatch c [] e = barf ErrNoPatternMatch
+evaluatePatternMatch c ((ConstantDef _):_) e = barf ErrExpectedPatternMatchDefGotConstantDef
 evaluatePatternMatch c0 ((PatternDef _ p d):defs) e =
   case unifyExprWithPattern c0 e p of
     Just c1 -> evaluate c1 d
