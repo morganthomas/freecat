@@ -104,6 +104,7 @@ data Expr =
 data Context = Context {
   contextId :: Integer,
   uri :: Maybe String,
+  parentContext :: Maybe Context,
   -- includes declarations from parent context
   declarations :: Map String Symbol,
   importedSymbols :: Map String Symbol
@@ -114,6 +115,7 @@ rootContext =
   Context {
     contextId = 0,
     uri = Nothing,
+    parentContext = Nothing,
     declarations = empty,
     importedSymbols = empty
   }
@@ -196,6 +198,7 @@ _simplyAugmentContext parentContext vName vType vDefs contextId =
         Context {
           contextId = contextId,
           uri = Nothing,
+          parentContext = Just parentContext,
           declarations = insert vName newSymbol (declarations parentContext),
           importedSymbols = empty
         }
