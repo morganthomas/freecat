@@ -159,7 +159,7 @@ popContextId =
 evaluate :: Context -> Expr -> Incat Expr
 evaluate c (SymbolExpr s) =
   case definitions s of
-    (ConstantDef e : _) -> evaluate c e
+    (ConstantDef e : _) -> evaluate (nativeContext s) e
     _ -> return (SymbolExpr s)
 evaluate c (AppExpr e0 e1) =
   do e0e <- evaluate c e0
@@ -168,11 +168,11 @@ evaluate c (AppExpr e0 e1) =
       SymbolExpr s ->
         case definitions s of
           [] -> return (AppExpr e0e e1e)
-          (ConstantDef d : _) -> evaluate c (AppExpr d e1e)
-          defs -> evaluatePatternMatch c defs (AppExpr e0e e1e)
+          (ConstantDef d : _) -> evaluate (nativeContext s) (AppExpr d e1e)
+          defs -> evaluatePatternMatch (nativeContext s) defs (AppExpr e0e e1e)
       AppExpr _ _ ->
         do s <- leadSymbol e0e
-           evaluatePatternMatch c (definitions s) (AppExpr e0e e1e)
+           evaluatePatternMatch (nativeContext s) (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
         do c' <- simplyAugmentContext c (name s) (definedType s) [ConstantDef e1e]
            evaluate c' d
