@@ -2,7 +2,7 @@
 -- The central processing unit
 module Incat.Core where
 
-import Data.Map (Map, insert, empty)
+import Data.Map (Map, insert, empty, singleton)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Except as E
@@ -37,8 +37,8 @@ data Error =
 
 type RawSymbol = String
 
-typeOfType :: RawSymbol
-typeOfType = "Type"
+rawTypeSymbol :: RawSymbol
+rawTypeSymbol = "Type"
 
 data RawExpr =
    RawSymbolExpr RawSymbol
@@ -116,8 +116,17 @@ rootContext =
     contextId = 0,
     uri = Nothing,
     parentContext = Nothing,
-    declarations = empty,
+    declarations = singleton rawTypeSymbol rootTypeSymbol,
     importedSymbols = empty
+  }
+
+rootTypeSymbol :: Symbol
+rootTypeSymbol =
+  Symbol {
+    name = rawTypeSymbol,
+    definedType = SymbolExpr rootTypeSymbol,
+    definitions = [],
+    nativeContext = rootContext
   }
 
 instance Eq Context where
