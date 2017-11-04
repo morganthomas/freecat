@@ -174,7 +174,7 @@ evaluate c (AppExpr e0 e1) =
         do s <- leadSymbol e0e
            evaluatePatternMatch (nativeContext s) (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
-        do c' <- simplyAugmentContext c (name s) (definedType s) [ConstantDef e1e]
+        do c' <- simplyAugmentContext (nativeContext s) (name s) (definedType s) [ConstantDef e1e]
            evaluate c' d
       FunctionTypeExpr _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
