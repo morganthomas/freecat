@@ -126,6 +126,9 @@ data Error =
 
 type Incat = StateT IncatState (E.ExceptT Error IO)
 
+throwE :: Error -> Incat a
+throwE e = lift (E.throwE e)
+
 --
 -- Evaluation
 --
