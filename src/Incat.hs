@@ -2,7 +2,7 @@
 -- The central processing unit
 module Incat.Core where
 
-import Data.Map (Map, insert, empty, singleton)
+import Data.Map as Map
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Except as E
@@ -30,6 +30,14 @@ data Error =
  | ErrExpectedLeadSymbolFoundLambda
  | ErrExpectedLeadSymbolFoundFunctionType
  | ErrExpectedPatternMatchDefGotConstantDef
+ | ErrSymbolNotDefined
+ | ErrAppHeadIsNotFunctionTyped
+ | ErrTypeMismatch
+ | ErrIThoughtThisWasImpossible
+
+unmaybe :: Maybe a -> Incat a
+unmaybe (Just x) = return x
+unmaybe Nothing = barf ErrIThoughtThisWasImpossible
 
 --
 -- Parse trees
@@ -72,6 +80,15 @@ type RawContext = [RawDeclaration]
 -- Basic semantic structures
 --
 
+data Context = Context {
+  contextId :: Integer,
+  uri :: Maybe String,
+  parentContext :: Maybe Context,
+  -- includes declarations from parent context
+  declarations :: Map.Map String Symbol,
+  importedSymbols :: Map.Map String Symbol
+}
+
 data Symbol = Symbol {
   name :: String,
   definedType :: Expr,
@@ -101,14 +118,11 @@ data Expr =
  | DependentFunctionTypeExpr Symbol Expr Expr
  deriving (Eq)
 
-data Context = Context {
-  contextId :: Integer,
-  uri :: Maybe String,
-  parentContext :: Maybe Context,
-  -- includes declarations from parent context
-  declarations :: Map String Symbol,
-  importedSymbols :: Map String Symbol
-}
+lookupSymbol :: Context -> String -> Maybe Symbol
+lookupSymbol c s =
+  case Map.lookup s (declarations c) of
+    Just sym -> Just sym
+    Nothing -> Map.lookup s (importedSymbols c)
 
 rootContext :: Context
 rootContext =
@@ -116,7 +130,7 @@ rootContext =
     contextId = 0,
     uri = Nothing,
     parentContext = Nothing,
-    declarations = singleton rawTypeSymbol rootTypeSymbol,
+    declarations = Map.singleton rawTypeSymbol rootTypeSymbol,
     importedSymbols = empty
   }
 
@@ -124,10 +138,13 @@ rootTypeSymbol :: Symbol
 rootTypeSymbol =
   Symbol {
     name = rawTypeSymbol,
-    definedType = SymbolExpr rootTypeSymbol,
+    definedType = typeOfTypes,
     definitions = [],
     nativeContext = rootContext
   }
+
+typeOfTypes :: Expr
+typeOfTypes = SymbolExpr rootTypeSymbol
 
 instance Eq Context where
   c0 == c1 = contextId c0 == contextId c1
@@ -139,7 +156,7 @@ instance Eq Context where
 data IncatState = IncatState {
   nextContextId :: Integer,
   -- keyed by uri
-  importedContexts :: Map String Context
+  importedContexts :: Map.Map String Context
 }
 
 initialState :: IncatState
@@ -208,8 +225,8 @@ _simplyAugmentContext parentContext vName vType vDefs contextId =
           contextId = contextId,
           uri = Nothing,
           parentContext = Just parentContext,
-          declarations = insert vName newSymbol (declarations parentContext),
-          importedSymbols = empty
+          declarations = Map.insert vName newSymbol (declarations parentContext),
+          importedSymbols = Map.empty
         }
       newSymbol =
         Symbol {
@@ -271,6 +288,60 @@ unifyExprWithPattern _ _ _ = return Nothing
 -- Constructing semantic objects from raw objects while checking coherence
 --
 
+-- Assumes all symbols used in RawExpr are defined in Context.
+-- Returns a pair of the digested expr and its inferred type.
+digestExpr :: Context -> RawExpr -> Incat (Expr, Expr)
+digestExpr c (RawSymbolExpr s) =
+  case lookupSymbol c s of
+    Just sym -> return (SymbolExpr sym, definedType sym)
+    Nothing -> barf ErrSymbolNotDefined
+digestExpr c (RawAppExpr e0 e1) =
+  do (e0d, e0dType) <- digestExpr c e0
+     (e1d, e1dType) <- digestExpr c e1
+     e0dTypeNorm <- evaluate c e0dType
+     appType <- case e0dType of
+       FunctionTypeExpr a b ->
+         do assertTypesMatch c a e1dType
+            return b
+       DependentFunctionTypeExpr s a b ->
+         do assertTypesMatch c a e1dType
+            c' <- simplyAugmentContext c (name s) a [ConstantDef e1d]
+            bEv <- evaluate c' b
+            return bEv
+       _ -> barf ErrAppHeadIsNotFunctionTyped
+     return ((AppExpr e0d e1d), appType)
+digestExpr c (RawLambdaExpr s t d) =
+  do (td, tdType) <- digestExpr c t
+     assertTypesMatch c tdType typeOfTypes
+     c' <- simplyAugmentContext c s td []
+     (dd, ddType) <- digestExpr c' d
+     sym <- unmaybe (lookupSymbol c' s)
+     return (
+       (LambdaExpr sym td dd),
+       (DependentFunctionTypeExpr sym tdType ddType)
+      )
+digestExpr c (RawFunctionTypeExpr a b) =
+  do (ad, adType) <- digestExpr c a
+     assertTypesMatch c adType typeOfTypes
+     (bd, bdType) <- digestExpr c b
+     assertTypesMatch c bdType typeOfTypes
+     return (FunctionTypeExpr ad bd, typeOfTypes)
+digestExpr c (RawDependentFunctionTypeExpr s a b) =
+  do (ad, adType) <- digestExpr c a
+     assertTypesMatch c adType typeOfTypes
+     c' <- simplyAugmentContext c s ad []
+     sym <- unmaybe (lookupSymbol c' s)
+     (bd, bdType) <- digestExpr c' b
+     assertTypesMatch c' bdType typeOfTypes
+     return (DependentFunctionTypeExpr sym ad bd, typeOfTypes)
+
+-- Throws an error unless the two exprs match as types. For now this
+-- simply means their normal forms are syntactically equal.
+assertTypesMatch :: Context -> Expr -> Expr -> Incat ()
+assertTypesMatch c a b =
+  do aEv <- evaluate c a
+     bEv <- evaluate c b
+     if a == b then return () else barf ErrTypeMismatch
+
 --digestContext :: RawContext -> Incat Context
---digestExpr :: Context -> RawExpr -> Incat Expr
 --digestPattern :: Context -> RawPattern -> Incat Pattern
