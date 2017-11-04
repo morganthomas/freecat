@@ -342,6 +342,7 @@ assertTypesMatch :: Context -> Expr -> Expr -> Incat ()
 assertTypesMatch c a b =
   do aEv <- evaluate c a
      bEv <- evaluate c b
+     -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
      if a == b then return () else barf ErrTypeMismatch
 
 --digestContext :: RawContext -> Incat Context
