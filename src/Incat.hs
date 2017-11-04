@@ -29,7 +29,6 @@ data Error =
    ErrFunctionTypeOnAppLHS
  | ErrExpectedLeadSymbolFoundLambda
  | ErrExpectedLeadSymbolFoundFunctionType
- | ErrNoPatternMatch
  | ErrExpectedPatternMatchDefGotConstantDef
 
 --
@@ -222,8 +221,7 @@ leadSymbol (DependentFunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFu
 -- if one matches, and throws an error if no patterns match. Assumes the
 -- subexpressions of the given expr are normalized.
 evaluatePatternMatch :: Context -> [Definition] -> Expr -> Incat Expr
-evaluatePatternMatch c [] e =
-  barf ErrNoPatternMatch
+evaluatePatternMatch c [] e = return e
 evaluatePatternMatch c ((ConstantDef _):_) e =
   barf ErrExpectedPatternMatchDefGotConstantDef
 evaluatePatternMatch c0 ((PatternDef _ p d):defs) e =
