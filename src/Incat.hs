@@ -113,6 +113,7 @@ data Context = Context {
 rootContext :: Context
 rootContext =
   Context {
+    contextId = 0,
     uri = Nothing,
     parentContext = Nothing,
     declarations = empty,
@@ -131,6 +132,14 @@ data IncatState = IncatState {
   -- keyed by uri
   importedContexts :: Map String Context
 }
+
+initialState :: IncatState
+initialState =
+  IncatState {
+    -- rootContext uses id 0
+    nextContextId = 1,
+    importedContexts = empty
+  }
 
 type Incat = StateT IncatState (E.ExceptT Error IO)
 
@@ -165,7 +174,8 @@ evaluate c (AppExpr e0 e1) =
         do s <- leadSymbol e0e
            evaluatePatternMatch c (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
-        evaluate (simplyAugmentContext c (name s) (definedType s) [ConstantDef e1e]) d
+        do c' <- simplyAugmentContext c (name s) (definedType s) [ConstantDef e1e]
+           evaluate c' d
       FunctionTypeExpr _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
 evaluate c (LambdaExpr s t d) = return (LambdaExpr s t d)
@@ -177,10 +187,16 @@ evaluate c (DependentFunctionTypeExpr s a b) = return (DependentFunctionTypeExpr
 
 -- Creates a new context which has the given context as parent and has a symbol
 -- with the given name, type, and definitions.
-simplyAugmentContext :: Context -> String -> Expr -> [Definition] -> Context
+simplyAugmentContext :: Context -> String -> Expr -> [Definition] -> Incat Context
 simplyAugmentContext parentContext vName vType vDefs =
+  do contextId <- popContextId
+     return $ _simplyAugmentContext parentContext vName vType vDefs contextId
+
+_simplyAugmentContext :: Context -> String -> Expr -> [Definition] -> Integer -> Context
+_simplyAugmentContext parentContext vName vType vDefs contextId =
   let newContext =
         Context {
+          contextId = contextId,
           uri = Nothing,
           parentContext = Just parentContext,
           declarations = singleton vName newSymbol,
@@ -208,31 +224,40 @@ leadSymbol (DependentFunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFu
 -- if one matches, and throws an error if no patterns match. Assumes the
 -- subexpressions of the given expr are normalized.
 evaluatePatternMatch :: Context -> [Definition] -> Expr -> Incat Expr
-evaluatePatternMatch c [] e = barf ErrNoPatternMatch
-evaluatePatternMatch c ((ConstantDef _):_) e = barf ErrExpectedPatternMatchDefGotConstantDef
+evaluatePatternMatch c [] e =
+  barf ErrNoPatternMatch
+evaluatePatternMatch c ((ConstantDef _):_) e =
+  barf ErrExpectedPatternMatchDefGotConstantDef
 evaluatePatternMatch c0 ((PatternDef _ p d):defs) e =
-  case unifyExprWithPattern c0 e p of
-    Just c1 -> evaluate c1 d
-    Nothing -> evaluatePatternMatch c0 defs e
+  do unifyResult <- unifyExprWithPattern c0 e p
+     case unifyResult of
+      Just c1 -> evaluate c1 d
+      Nothing -> evaluatePatternMatch c0 defs e
 
 -- Takes an expr and a pattern and returns an augmented context in which the
 -- pattern variables are defined according to the unification of expr and pattern.
 -- That assumes expr can be unified with pattern. If not returns nothing.
 -- Assumes expr is evaluated (i.e. in normal form).
-unifyExprWithPattern :: Context -> Expr -> Pattern -> Maybe Context
+unifyExprWithPattern :: Context -> Expr -> Pattern -> Incat (Maybe Context)
 unifyExprWithPattern c (AppExpr (SymbolExpr s) e) (AppPat (SymbolPat t) p) =
   if s == t
     then unifyExprWithPattern c e p
-    else Nothing
+    else return Nothing
 unifyExprWithPattern c0 (AppExpr e f) (AppPat p q) =
-  do c1 <- unifyExprWithPattern c0 e p
-     c2 <- unifyExprWithPattern c1 f q
-     return c2
+  do unifyResult1 <- unifyExprWithPattern c0 e p
+     case unifyResult1 of
+       Nothing -> return Nothing
+       Just c1 ->
+        do unifyResult2 <- unifyExprWithPattern c1 f q
+           case unifyResult2 of
+             Nothing -> return Nothing
+             Just c2 -> return $ Just c2
 unifyExprWithPattern c (SymbolExpr s) (SymbolPat t) =
   if definedType s == definedType t -- TODO: check whether evaluated defined types are alpha convertible
-    then Just (simplyAugmentContext c (name t) (definedType t) (definitions s))
-    else Nothing
-unifyExprWithPattern _ _ _ = Nothing
+    then simplyAugmentContext c (name t) (definedType t) (definitions s)
+         >>= return . Just
+    else return Nothing
+unifyExprWithPattern _ _ _ = return Nothing
 
 --
 -- Constructing semantic objects from raw objects while checking coherence
