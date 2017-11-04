@@ -137,6 +137,12 @@ type Incat = StateT IncatState (E.ExceptT Error IO)
 barf :: Error -> Incat a
 barf e = lift (E.throwE e)
 
+popContextId :: Incat Integer
+popContextId =
+  do st <- get
+     put $ st { nextContextId = 1 + nextContextId st }
+     return $ nextContextId st
+
 --
 -- Evaluation
 --
