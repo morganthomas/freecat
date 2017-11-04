@@ -8,6 +8,10 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Except as E
 import Control.Monad.IO.Class
 
+--
+-- Lexical tokens
+--
+
 data LexicalToken =
     SymbolToken String
   | ColonToken
@@ -16,6 +20,17 @@ data LexicalToken =
   | OpenParen
   | CloseParen
   | Backslash
+
+--
+-- Errors
+--
+
+data Error =
+   ErrFunctionTypeOnAppLHS
+ | ErrExpectedLeadSymbolFoundLambda
+ | ErrExpectedLeadSymbolFoundFunctionType
+ | ErrNoPatternMatch
+ | ErrExpectedPatternMatchDefGotConstantDef
 
 --
 -- Parse trees
@@ -116,13 +131,6 @@ data IncatState = IncatState {
   -- keyed by uri
   importedContexts :: Map String Context
 }
-
-data Error =
-   ErrFunctionTypeOnAppLHS
- | ErrExpectedLeadSymbolFoundLambda
- | ErrExpectedLeadSymbolFoundFunctionType
- | ErrNoPatternMatch
- | ErrExpectedPatternMatchDefGotConstantDef
 
 type Incat = StateT IncatState (E.ExceptT Error IO)
 
