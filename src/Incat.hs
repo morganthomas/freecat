@@ -36,9 +36,9 @@ data Error =
  | ErrIThoughtThisWasImpossible
 
 -- Use to extract a from Maybe a when you know that it will be there
-definitely :: Maybe a -> Incat a
-definitely (Just x) = return x
-definitely Nothing = barf ErrIThoughtThisWasImpossible
+certainly :: Maybe a -> Incat a
+certainly (Just x) = return x
+certainly Nothing = barf ErrIThoughtThisWasImpossible
 
 --
 -- Parse trees
@@ -316,7 +316,7 @@ digestExpr c (RawLambdaExpr s t d) =
      assertTypesMatch c tdType typeOfTypes
      c' <- simplyAugmentContext c s td []
      (dd, ddType) <- digestExpr c' d
-     sym <- definitely (lookupSymbol c' s)
+     sym <- certainly (lookupSymbol c' s)
      return (
        (LambdaExpr sym td dd),
        (DependentFunctionTypeExpr sym tdType ddType)
@@ -331,7 +331,7 @@ digestExpr c (RawDependentFunctionTypeExpr s a b) =
   do (ad, adType) <- digestExpr c a
      assertTypesMatch c adType typeOfTypes
      c' <- simplyAugmentContext c s ad []
-     sym <- definitely (lookupSymbol c' s)
+     sym <- certainly (lookupSymbol c' s)
      (bd, bdType) <- digestExpr c' b
      assertTypesMatch c' bdType typeOfTypes
      return (DependentFunctionTypeExpr sym ad bd, typeOfTypes)
