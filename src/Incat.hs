@@ -35,11 +35,6 @@ data Error =
  | ErrTypeMismatch
  | ErrIThoughtThisWasImpossible
 
--- Use to extract a from Maybe a when you know that it will be there
-certainly :: Maybe a -> Incat a
-certainly (Just x) = return x
-certainly Nothing = barf ErrIThoughtThisWasImpossible
-
 --
 -- Parse trees
 --
@@ -178,6 +173,11 @@ popContextId =
   do st <- get
      put $ st { nextContextId = 1 + nextContextId st }
      return $ nextContextId st
+
+-- Use to extract a from Maybe a when you know that it will be there
+certainly :: Maybe a -> Incat a
+certainly (Just x) = return x
+certainly Nothing = barf ErrIThoughtThisWasImpossible
 
 --
 -- Evaluation
