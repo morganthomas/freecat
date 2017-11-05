@@ -345,5 +345,14 @@ assertTypesMatch c a b =
      -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
      if a == b then return () else barf ErrTypeMismatch
 
+digestPattern :: Context -> RawPattern -> Incat Pattern
+digestPattern c (RawSymbolPat s) =
+  case lookupSymbol c s of
+    Just sym -> return (SymbolPat sym)
+    Nothing -> barf ErrSymbolNotDefined
+digestPattern c (RawAppPat p q) =
+  do pd <- digestPattern c p
+     pq <- digestPattern c q
+     return (AppPat pd pq)
+
 --digestContext :: RawContext -> Incat Context
---digestPattern :: Context -> RawPattern -> Incat Pattern
