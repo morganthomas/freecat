@@ -3,6 +3,7 @@
 module Incat.Core where
 
 import Data.Map as Map
+import Control.Monad (mapM, foldM)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Except as E
@@ -34,6 +35,8 @@ data Error =
  | ErrAppHeadIsNotFunctionTyped
  | ErrTypeMismatch
  | ErrIThoughtThisWasImpossible
+ | ErrExtraTypeDeclaration
+ | ErrEquationWithoutMatchingTypeDeclaration
 
 --
 -- Parse trees
@@ -55,11 +58,15 @@ data RawPattern =
    RawSymbolPat RawSymbol
  | RawAppPat RawPattern RawPattern
 
+rawPatternLeadSymbol :: RawPattern -> RawSymbol
+rawPatternLeadSymbol (RawSymbolPat s) = s
+rawPatternLeadSymbol (RawAppPat p q) = rawPatternLeadSymbol p
+
 patToExpr :: RawPattern -> RawExpr
 patToExpr (RawSymbolPat s) = RawSymbolExpr s
 patToExpr (RawAppPat p q) = RawAppExpr (patToExpr p) (patToExpr q)
 
-data RawTypeAssertion = RawTypeAssertion RawSymbol Expr
+data RawTypeAssertion = RawTypeAssertion RawSymbol RawExpr
 data RawEquation = RawEquation [RawTypeAssertion] RawPattern RawExpr
 data RawImport =
    RawImportAsSymbol String String -- uri, name
@@ -302,10 +309,10 @@ digestExpr c (RawAppExpr e0 e1) =
      e0dTypeNorm <- evaluate c e0dType
      appType <- case e0dType of
        FunctionTypeExpr a b ->
-         do assertTypesMatch c a e1dType
+         do assertTypesMatch c a c e1dType
             return b
        DependentFunctionTypeExpr s a b ->
-         do assertTypesMatch c a e1dType
+         do assertTypesMatch c a c e1dType
             c' <- simplyAugmentContext c (name s) a [ConstantDef e1d]
             bEv <- evaluate c' b
             return bEv
@@ -313,7 +320,7 @@ digestExpr c (RawAppExpr e0 e1) =
      return ((AppExpr e0d e1d), appType)
 digestExpr c (RawLambdaExpr s t d) =
   do (td, tdType) <- digestExpr c t
-     assertTypesMatch c tdType typeOfTypes
+     assertTypesMatch c tdType rootContext typeOfTypes
      c' <- simplyAugmentContext c s td []
      (dd, ddType) <- digestExpr c' d
      sym <- certainly (lookupSymbol c' s)
@@ -323,27 +330,27 @@ digestExpr c (RawLambdaExpr s t d) =
       )
 digestExpr c (RawFunctionTypeExpr a b) =
   do (ad, adType) <- digestExpr c a
-     assertTypesMatch c adType typeOfTypes
+     assertTypesMatch c adType rootContext typeOfTypes
      (bd, bdType) <- digestExpr c b
-     assertTypesMatch c bdType typeOfTypes
+     assertTypesMatch c bdType rootContext typeOfTypes
      return (FunctionTypeExpr ad bd, typeOfTypes)
 digestExpr c (RawDependentFunctionTypeExpr s a b) =
   do (ad, adType) <- digestExpr c a
-     assertTypesMatch c adType typeOfTypes
+     assertTypesMatch c adType rootContext typeOfTypes
      c' <- simplyAugmentContext c s ad []
      sym <- certainly (lookupSymbol c' s)
      (bd, bdType) <- digestExpr c' b
-     assertTypesMatch c' bdType typeOfTypes
+     assertTypesMatch c' bdType rootContext typeOfTypes
      return (DependentFunctionTypeExpr sym ad bd, typeOfTypes)
 
 -- Throws an error unless the two exprs match as types. For now this
 -- simply means their normal forms are syntactically equal.
-assertTypesMatch :: Context -> Expr -> Expr -> Incat ()
-assertTypesMatch c a b =
-  do aEv <- evaluate c a
-     bEv <- evaluate c b
+assertTypesMatch :: Context -> Expr -> Context -> Expr -> Incat ()
+assertTypesMatch ac a bc b =
+  do aEv <- evaluate ac a
+     bEv <- evaluate bc b
      -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
-     if a == b then return () else barf ErrTypeMismatch
+     if aEv == bEv then return () else barf ErrTypeMismatch
 
 digestPattern :: Context -> RawPattern -> Incat Pattern
 digestPattern c (RawSymbolPat s) =
@@ -355,4 +362,45 @@ digestPattern c (RawAppPat p q) =
      pq <- digestPattern c q
      return (AppPat pd pq)
 
---digestContext :: RawContext -> Incat Context
+digestContext :: RawContext -> Incat Context
+digestContext decls =
+  do c <- foldM addToContext rootContext decls
+     return c
+     --return (flattenContext c)
+
+digestTypeAssertion :: Context -> RawTypeAssertion -> Incat Context
+digestTypeAssertion c (RawTypeAssertion s rawt) =
+  case lookupSymbol c s of
+    Just _ -> barf ErrExtraTypeDeclaration
+    Nothing ->
+      do (t, tt) <- digestExpr c rawt
+         assertTypesMatch c tt rootContext typeOfTypes
+         c' <- simplyAugmentContext c s t []
+         return c'
+
+-- cPat is assumed to contain a declaration generated from this type
+-- assertion via digestTypeAssertion
+digestVarDecl :: Context -> RawTypeAssertion -> Incat VariableDeclaration
+digestVarDecl cPat (RawTypeAssertion s _) =
+  do sym <- certainly (lookupSymbol cPat s)
+     return (VarDecl sym (definedType sym))
+
+addToContext :: Context -> RawDeclaration -> Incat Context
+addToContext c (RawTypeDeclaration assertion) = digestTypeAssertion c assertion
+addToContext c (RawImportDeclaration _) = error "import not implemented"
+addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef)) =
+  case lookupSymbol c (rawPatternLeadSymbol rawpat) of
+    Nothing -> barf ErrEquationWithoutMatchingTypeDeclaration
+    Just sym ->
+      do cPat <- foldM digestTypeAssertion c rawdecls
+         pat <- digestPattern cPat rawpat
+         (def, defType) <- digestExpr cPat rawdef
+         assertTypesMatch cPat defType (nativeContext sym) (definedType sym)
+         decls <- mapM (digestVarDecl cPat) rawdecls
+         simplyAugmentContext c (name sym) (definedType sym)
+           (definitions sym ++ [ PatternDef decls pat def ]) -- TODO: less consing
+
+-- Returns a context modified by flattening it so that all symbols
+-- declared in it are native to the context and referenced as such
+-- throughout all definitions.
+--flattenContext :: Context -> Context
