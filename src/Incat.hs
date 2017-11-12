@@ -97,7 +97,10 @@ data Symbol = Symbol {
   definedType :: Expr,
   -- all pattern definitions have this symbol as their lead symbol
   definitions :: [Definition],
-  nativeContext :: Context
+  -- the context in which the symbol was originally defined
+  nativeContext :: Context,
+  -- the context to use for evaluating the symbol's definition
+  evaluationContext :: Maybe Context
 }
 
 instance Eq Symbol where
@@ -143,7 +146,8 @@ rootTypeSymbol =
     name = rawTypeSymbol,
     definedType = typeOfTypes,
     definitions = [],
-    nativeContext = rootContext
+    nativeContext = rootContext,
+    evaluationContext = Nothing
   }
 
 typeOfTypes :: Expr
@@ -202,13 +206,18 @@ evaluate c (AppExpr e0 e1) =
       SymbolExpr s ->
         case definitions s of
           [] -> return (AppExpr e0e e1e)
-          (ConstantDef d : _) -> evaluate (nativeContext s) (AppExpr d e1e)
-          defs -> evaluatePatternMatch (nativeContext s) defs (AppExpr e0e e1e)
+          (ConstantDef d : _) ->
+            do ec <- certainly (evaluationContext s)
+               evaluate ec (AppExpr d e1e)
+          defs ->
+            do ec <- certainly (evaluationContext s)
+               evaluatePatternMatch ec defs (AppExpr e0e e1e)
       AppExpr _ _ ->
         do s <- leadSymbol e0e
-           evaluatePatternMatch (nativeContext s) (definitions s) (AppExpr e0e e1e)
+           ec <- certainly (evaluationContext s)
+           evaluatePatternMatch ec (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
-        do c' <- simplyAugmentContext (nativeContext s) (name s) (definedType s) [ConstantDef e1e]
+        do c' <- simplyAugmentContext c (name s) (definedType s) [ConstantDef e1e]
            evaluate c' d
       FunctionTypeExpr _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
@@ -241,7 +250,8 @@ _simplyAugmentContext parentContext vName vType vDefs contextId =
           name = vName,
           definedType = vType,
           definitions = vDefs,
-          nativeContext = newContext
+          nativeContext = newContext,
+          evaluationContext = Nothing
         }
     in newContext
 
@@ -295,6 +305,11 @@ unifyExprWithPattern _ _ _ = return Nothing
 --
 -- Constructing semantic objects from raw objects while checking coherence
 --
+
+digestContext :: RawContext -> Incat Context
+digestContext decls =
+  do c <- foldM addToContext rootContext decls
+     completeContext c
 
 -- Assumes all symbols used in RawExpr are defined in Context.
 -- Returns a pair of the digested expr and its inferred type.
@@ -362,12 +377,6 @@ digestPattern c (RawAppPat p q) =
      pq <- digestPattern c q
      return (AppPat pd pq)
 
-digestContext :: RawContext -> Incat Context
-digestContext decls =
-  do c <- foldM addToContext rootContext decls
-     return c
-     --return (flattenContext c)
-
 digestTypeAssertion :: Context -> RawTypeAssertion -> Incat Context
 digestTypeAssertion c (RawTypeAssertion s rawt) =
   case lookupSymbol c s of
@@ -400,7 +409,69 @@ addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef)) =
          simplyAugmentContext c (name sym) (definedType sym)
            (definitions sym ++ [ PatternDef decls pat def ]) -- TODO: less consing
 
--- Returns a context modified by flattening it so that all symbols
--- declared in it are native to the context and referenced as such
--- throughout all definitions.
---flattenContext :: Context -> Context
+completeContext :: Context -> Incat Context
+completeContext c =
+  do contextId <- popContextId
+     let completedContext = Context {
+             contextId = contextId,
+             uri = (uri c),
+             parentContext = Just rootContext,
+             declarations = Map.map (addEvaluationContextToSymbol completedContext) (declarations c),
+             importedSymbols = Map.empty
+           }
+       in return completedContext
+
+addEvaluationContextToSymbol :: Context -> Symbol -> Symbol
+addEvaluationContextToSymbol ec s =
+  Symbol {
+    name = name s,
+    definedType = addEvaluationContextToExpr ec (definedType s),
+    definitions = Prelude.map (addEvaluationContextToDefinition ec) (definitions s),
+    nativeContext = nativeContext s,
+    evaluationContext = Just ec
+  }
+
+addEvaluationContextToExpr :: Context -> Expr -> Expr
+addEvaluationContextToExpr ec (SymbolExpr s) =
+  case Map.lookup (name s) (declarations ec) of
+    Just s' ->
+      if nativeContext s == nativeContext s'
+        then SymbolExpr s'
+        else SymbolExpr s
+    Nothing -> SymbolExpr s
+addEvaluationContextToExpr ec (AppExpr f x) =
+  let f' = addEvaluationContextToExpr ec f
+      x' = addEvaluationContextToExpr ec x
+    in AppExpr f' x'
+addEvaluationContextToExpr ec (LambdaExpr s t d) =
+  let t' = addEvaluationContextToExpr ec t
+      d' = addEvaluationContextToExpr ec d
+    in LambdaExpr s t' d'
+
+addEvaluationContextToPattern :: Context -> Pattern -> Pattern
+addEvaluationContextToPattern ec (SymbolPat s) =
+  case Map.lookup (name s) (declarations ec) of
+    Just s' ->
+      if nativeContext s == nativeContext s'
+        then SymbolPat s'
+        else SymbolPat s
+    Nothing -> SymbolPat s
+addEvaluationContextToPattern ec (AppPat f x) =
+  let f' = addEvaluationContextToPattern ec f
+      x' = addEvaluationContextToPattern ec x
+    in AppPat f' x'
+
+addEvaluationContextToVariableDeclaration :: Context -> VariableDeclaration -> VariableDeclaration
+addEvaluationContextToVariableDeclaration ec (VarDecl s t) =
+  let t' = addEvaluationContextToExpr ec t
+    in VarDecl s t'
+
+addEvaluationContextToDefinition :: Context -> Definition -> Definition
+addEvaluationContextToDefinition ec (ConstantDef e) =
+  let e' = addEvaluationContextToExpr ec e'
+    in ConstantDef e'
+addEvaluationContextToDefinition ec (PatternDef decls pat e) =
+  let decls' = Prelude.map (addEvaluationContextToVariableDeclaration ec) decls
+      pat' = addEvaluationContextToPattern ec pat
+      e' = addEvaluationContextToExpr ec e
+    in PatternDef decls' pat' e'
