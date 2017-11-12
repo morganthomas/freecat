@@ -282,25 +282,41 @@ evaluatePatternMatch c0 ((PatternDef _ p d):defs) e =
 -- That assumes expr can be unified with pattern. If not returns nothing.
 -- Assumes expr is evaluated (i.e. in normal form).
 unifyExprWithPattern :: Context -> Expr -> Pattern -> Incat (Maybe Context)
-unifyExprWithPattern c (AppExpr (SymbolExpr s) e) (AppPat (SymbolPat t) p) =
-  if s == t
-    then unifyExprWithPattern c e p
-    else return Nothing
-unifyExprWithPattern c0 (AppExpr e f) (AppPat p q) =
-  do unifyResult1 <- unifyExprWithPattern c0 e p
+unifyExprWithPattern c e pat =
+  do unifyResult <- _unifyExprWithPattern (c, Map.empty) e pat
+     case unifyResult of
+       Just (c, matches) -> return (Just c)
+       Nothing -> return Nothing
+
+_unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> Incat (Maybe (Context, Map String Expr))
+_unifyExprWithPattern (c, matches) e (SymbolPat t) =
+  case Map.lookup (name t) matches of
+    Just v ->
+      if e == v -- TODO: weaken equivalence notion?
+        then return (Just (c, matches))
+        else return Nothing
+    Nothing ->
+      case lookupSymbol c (name t) of
+       Just s ->
+        case e of
+          SymbolExpr u ->
+            if u == t
+              then return (Just (c, matches))
+              else return Nothing
+          _ -> return Nothing
+       Nothing -> do
+         c' <- simplyAugmentContext c (name t) (definedType t) [ConstantDef e]
+         return (Just (c, Map.insert (name t) e matches))
+_unifyExprWithPattern (c0, matches0) (AppExpr e f) (AppPat p q) =
+  do unifyResult1 <- _unifyExprWithPattern (c0, matches0) e p
      case unifyResult1 of
        Nothing -> return Nothing
-       Just c1 ->
-        do unifyResult2 <- unifyExprWithPattern c1 f q
+       Just (c1, matches1) ->
+        do unifyResult2 <- _unifyExprWithPattern (c1, matches1) f q
            case unifyResult2 of
              Nothing -> return Nothing
-             Just c2 -> return $ Just c2
-unifyExprWithPattern c (SymbolExpr s) (SymbolPat t) =
-  if definedType s == definedType t -- TODO: check whether evaluated defined types are alpha convertible
-    then simplyAugmentContext c (name t) (definedType t) (definitions s)
-         >>= return . Just
-    else return Nothing
-unifyExprWithPattern _ _ _ = return Nothing
+             something@(Just (c2, matches2)) -> return something
+_unifyExprWithPattern _ _ _ = return Nothing
 
 --
 -- Constructing semantic objects from raw objects while checking coherence
