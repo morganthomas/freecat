@@ -311,6 +311,21 @@ digestContext decls =
   do c <- foldM addToContext rootContext decls
      completeContext c
 
+addToContext :: Context -> RawDeclaration -> Incat Context
+addToContext c (RawTypeDeclaration assertion) = digestTypeAssertion c assertion
+addToContext c (RawImportDeclaration _) = error "import not implemented"
+addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef)) =
+ case lookupSymbol c (rawPatternLeadSymbol rawpat) of
+   Nothing -> barf ErrEquationWithoutMatchingTypeDeclaration
+   Just sym ->
+     do cPat <- foldM digestTypeAssertion c rawdecls
+        pat <- digestPattern cPat rawpat
+        (def, defType) <- digestExpr cPat rawdef
+        assertTypesMatch cPat defType (nativeContext sym) (definedType sym)
+        decls <- mapM (digestVarDecl cPat) rawdecls
+        simplyAugmentContext c (name sym) (definedType sym)
+          (definitions sym ++ [ PatternDef decls pat def ]) -- TODO: less consing
+
 -- Assumes all symbols used in RawExpr are defined in Context.
 -- Returns a pair of the digested expr and its inferred type.
 digestExpr :: Context -> RawExpr -> Incat (Expr, Expr)
@@ -393,21 +408,6 @@ digestVarDecl :: Context -> RawTypeAssertion -> Incat VariableDeclaration
 digestVarDecl cPat (RawTypeAssertion s _) =
   do sym <- certainly (lookupSymbol cPat s)
      return (VarDecl sym (definedType sym))
-
-addToContext :: Context -> RawDeclaration -> Incat Context
-addToContext c (RawTypeDeclaration assertion) = digestTypeAssertion c assertion
-addToContext c (RawImportDeclaration _) = error "import not implemented"
-addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef)) =
-  case lookupSymbol c (rawPatternLeadSymbol rawpat) of
-    Nothing -> barf ErrEquationWithoutMatchingTypeDeclaration
-    Just sym ->
-      do cPat <- foldM digestTypeAssertion c rawdecls
-         pat <- digestPattern cPat rawpat
-         (def, defType) <- digestExpr cPat rawdef
-         assertTypesMatch cPat defType (nativeContext sym) (definedType sym)
-         decls <- mapM (digestVarDecl cPat) rawdecls
-         simplyAugmentContext c (name sym) (definedType sym)
-           (definitions sym ++ [ PatternDef decls pat def ]) -- TODO: less consing
 
 completeContext :: Context -> Incat Context
 completeContext c =
