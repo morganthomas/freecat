@@ -468,7 +468,7 @@ addEvaluationContextToPattern :: Context -> Pattern -> Pattern
 addEvaluationContextToPattern ec (SymbolPat s) =
   case Map.lookup (name s) (declarations ec) of
     Just s' ->
-      if nativeContext s == nativeContext s'
+      if s == s' -- iff nativeContext s == nativeContext s', since we know name s == name s'
         then SymbolPat s'
         else SymbolPat s
     Nothing -> SymbolPat s
