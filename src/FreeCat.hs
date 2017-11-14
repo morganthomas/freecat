@@ -1,6 +1,6 @@
 -- Core syntactic and semantic definitions
 -- The central processing unit
-module Incat.Core where
+module FreeCat.Core where
 
 import Data.Map as Map
 import Control.Monad (mapM, foldM)
@@ -157,36 +157,36 @@ instance Eq Context where
   c0 == c1 = contextId c0 == contextId c1
 
 --
--- Incat monadic meta-context
+-- FreeCat monadic meta-context
 --
 
-data IncatState = IncatState {
+data FreeCatState = FreeCatState {
   nextContextId :: Integer,
   -- keyed by uri
   importedContexts :: Map.Map String Context
 }
 
-initialState :: IncatState
+initialState :: FreeCatState
 initialState =
-  IncatState {
+  FreeCatState {
     -- rootContext uses id 0
     nextContextId = 1,
     importedContexts = empty
   }
 
-type Incat = StateT IncatState (E.ExceptT Error IO)
+type FreeCat = StateT FreeCatState (E.ExceptT Error IO)
 
-barf :: Error -> Incat a
+barf :: Error -> FreeCat a
 barf e = lift (E.throwE e)
 
-popContextId :: Incat Integer
+popContextId :: FreeCat Integer
 popContextId =
   do st <- get
      put $ st { nextContextId = 1 + nextContextId st }
      return $ nextContextId st
 
 -- Use to extract a from Maybe a when you know that it will be there
-certainly :: Maybe a -> Incat a
+certainly :: Maybe a -> FreeCat a
 certainly (Just x) = return x
 certainly Nothing = barf ErrIThoughtThisWasImpossible
 
@@ -194,7 +194,7 @@ certainly Nothing = barf ErrIThoughtThisWasImpossible
 -- Evaluation
 --
 
-evaluate :: Context -> Expr -> Incat Expr
+evaluate :: Context -> Expr -> FreeCat Expr
 evaluate c (SymbolExpr s) =
   case definitions s of
     (ConstantDef e : _) -> evaluate (nativeContext s) e
@@ -230,7 +230,7 @@ evaluate c (DependentFunctionTypeExpr s a b) = return (DependentFunctionTypeExpr
 
 -- Creates a new context which has the given context as parent and has a symbol
 -- with the given name, type, and definitions.
-simplyAugmentContext :: Context -> String -> Expr -> [Definition] -> Incat Context
+simplyAugmentContext :: Context -> String -> Expr -> [Definition] -> FreeCat Context
 simplyAugmentContext parentContext vName vType vDefs =
   do contextId <- popContextId
      return $ _simplyAugmentContext parentContext vName vType vDefs contextId
@@ -256,7 +256,7 @@ _simplyAugmentContext parentContext vName vType vDefs contextId =
     in newContext
 
 -- Gathers the lead symbol in a normalized application expression.
-leadSymbol :: Expr -> Incat Symbol
+leadSymbol :: Expr -> FreeCat Symbol
 leadSymbol (SymbolExpr s) = return s
 leadSymbol (AppExpr e0 e1) = leadSymbol e0
 leadSymbol (LambdaExpr _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
@@ -267,7 +267,7 @@ leadSymbol (DependentFunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFu
 -- Returns the result of evaluating the expr against the first matching definition
 -- if one matches, and throws an error if no patterns match. Assumes the
 -- subexpressions of the given expr are normalized.
-evaluatePatternMatch :: Context -> [Definition] -> Expr -> Incat Expr
+evaluatePatternMatch :: Context -> [Definition] -> Expr -> FreeCat Expr
 evaluatePatternMatch c [] e = return e
 evaluatePatternMatch c ((ConstantDef _):_) e =
   barf ErrExpectedPatternMatchDefGotConstantDef
@@ -281,14 +281,14 @@ evaluatePatternMatch c0 ((PatternDef _ p d):defs) e =
 -- pattern variables are defined according to the unification of expr and pattern.
 -- That assumes expr can be unified with pattern. If not returns nothing.
 -- Assumes expr is evaluated (i.e. in normal form).
-unifyExprWithPattern :: Context -> Expr -> Pattern -> Incat (Maybe Context)
+unifyExprWithPattern :: Context -> Expr -> Pattern -> FreeCat (Maybe Context)
 unifyExprWithPattern c e pat =
   do unifyResult <- _unifyExprWithPattern (c, Map.empty) e pat
      case unifyResult of
        Just (c, matches) -> return (Just c)
        Nothing -> return Nothing
 
-_unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> Incat (Maybe (Context, Map String Expr))
+_unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> FreeCat (Maybe (Context, Map String Expr))
 _unifyExprWithPattern (c, matches) e (SymbolPat t) =
   case Map.lookup (name t) matches of
     Just v ->
@@ -322,12 +322,12 @@ _unifyExprWithPattern _ _ _ = return Nothing
 -- Constructing semantic objects from raw objects while checking coherence
 --
 
-digestContext :: RawContext -> Incat Context
+digestContext :: RawContext -> FreeCat Context
 digestContext decls =
   do c <- foldM addToContext rootContext decls
      completeContext c
 
-addToContext :: Context -> RawDeclaration -> Incat Context
+addToContext :: Context -> RawDeclaration -> FreeCat Context
 addToContext c (RawTypeDeclaration assertion) = digestTypeAssertion c assertion
 addToContext c (RawImportDeclaration _) = error "import not implemented"
 addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef)) =
@@ -344,7 +344,7 @@ addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef)) =
 
 -- Assumes all symbols used in RawExpr are defined in Context.
 -- Returns a pair of the digested expr and its inferred type.
-digestExpr :: Context -> RawExpr -> Incat (Expr, Expr)
+digestExpr :: Context -> RawExpr -> FreeCat (Expr, Expr)
 digestExpr c (RawSymbolExpr s) =
   case lookupSymbol c s of
     Just sym -> return (SymbolExpr sym, definedType sym)
@@ -391,14 +391,14 @@ digestExpr c (RawDependentFunctionTypeExpr s a b) =
 
 -- Throws an error unless the two exprs match as types. For now this
 -- simply means their normal forms are syntactically equal.
-assertTypesMatch :: Context -> Expr -> Context -> Expr -> Incat ()
+assertTypesMatch :: Context -> Expr -> Context -> Expr -> FreeCat ()
 assertTypesMatch ac a bc b =
   do aEv <- evaluate ac a
      bEv <- evaluate bc b
      -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
      if aEv == bEv then return () else barf ErrTypeMismatch
 
-digestPattern :: Context -> RawPattern -> Incat Pattern
+digestPattern :: Context -> RawPattern -> FreeCat Pattern
 digestPattern c (RawSymbolPat s) =
   case lookupSymbol c s of
     Just sym -> return (SymbolPat sym)
@@ -408,7 +408,7 @@ digestPattern c (RawAppPat p q) =
      pq <- digestPattern c q
      return (AppPat pd pq)
 
-digestTypeAssertion :: Context -> RawTypeAssertion -> Incat Context
+digestTypeAssertion :: Context -> RawTypeAssertion -> FreeCat Context
 digestTypeAssertion c (RawTypeAssertion s rawt) =
   case lookupSymbol c s of
     Just _ -> barf ErrExtraTypeDeclaration
@@ -420,12 +420,12 @@ digestTypeAssertion c (RawTypeAssertion s rawt) =
 
 -- cPat is assumed to contain a declaration generated from this type
 -- assertion via digestTypeAssertion
-digestVarDecl :: Context -> RawTypeAssertion -> Incat VariableDeclaration
+digestVarDecl :: Context -> RawTypeAssertion -> FreeCat VariableDeclaration
 digestVarDecl cPat (RawTypeAssertion s _) =
   do sym <- certainly (lookupSymbol cPat s)
      return (VarDecl sym (definedType sym))
 
-completeContext :: Context -> Incat Context
+completeContext :: Context -> FreeCat Context
 completeContext c =
   do contextId <- popContextId
      let completedContext = Context {
