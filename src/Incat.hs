@@ -466,11 +466,16 @@ addEvaluationContextToExpr ec (LambdaExpr s t d) =
 
 addEvaluationContextToPattern :: Context -> Pattern -> Pattern
 addEvaluationContextToPattern ec (SymbolPat s) =
+  -- crap, this will be an infinite loop
   case Map.lookup (name s) (declarations ec) of
     Just s' ->
       if s == s' -- iff nativeContext s == nativeContext s', since we know name s == name s'
-        then SymbolPat s'
-        else SymbolPat s
+        then -- even though s == s', s' has the evaluation context added whereas s does not
+          SymbolPat s'
+        else -- s' is some other symbol not declared in ec.
+          -- this is right because we're not adding an evaluation context
+          -- to symbols outside the evaluation context
+          SymbolPat s
     Nothing -> SymbolPat s
 addEvaluationContextToPattern ec (AppPat f x) =
   let f' = addEvaluationContextToPattern ec f
