@@ -466,7 +466,6 @@ addEvaluationContextToExpr ec (LambdaExpr s t d) =
 
 addEvaluationContextToPattern :: Context -> Pattern -> Pattern
 addEvaluationContextToPattern ec (SymbolPat s) =
-  -- crap, this will be an infinite loop
   case Map.lookup (name s) (declarations ec) of
     Just s' ->
       if s == s' -- iff nativeContext s == nativeContext s', since we know name s == name s'
