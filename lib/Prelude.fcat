@@ -1,0 +1,194 @@
+-- Prelude.fcat assumes we have argument inference
+
+--
+-- Empty type
+--
+
+False : Type
+
+--
+-- Maybe
+--
+
+Maybe : Type -> Type
+nothing : Maybe a
+just : a -> Maybe a
+
+--
+-- Homogeneous list type
+--
+
+List : Type -> Type
+nil : List a
+cons : a -> List a -> List a
+
+--
+-- Functors
+--
+
+Functor : (Type -> Type) -> Type
+map : {f : Type -> Type} -> {Functor f} -> (a -> b) -> f a -> f b
+
+ListIsFunctor : Functor List
+map {f = List} {- inferred arg: {ListIsFunctor f} -} g nil = nil
+map {f = List} g (cons x xs) = cons (g x) (map {f = List} g xs)
+
+--
+-- Tuple types
+--
+
+-- Dependent pair type
+DepPair : (a : Type) -> (a -> Type) -> Type
+depPair :
+  {a : Type} -> {b : a -> Type} ->
+  a -> b a -> DepPair a b
+
+-- Cartesian (non-dependent) pair type
+Pair : Type -> Type -> Type
+pair : {a : Type} -> {b : Type} -> a -> b -> Pair a b
+
+-- Cartesian triple type
+Triple : Type -> Type -> Type -> Type
+triple : {a : Type} -> {b : Type} -> {c : Type} -> a -> b -> c -> Pair a b c
+
+--
+-- Heterogeneous list type
+--
+
+HetList : List Type -> Type
+hetNil : HetList nil
+hetCons : a -> HetList as -> HetList (cons a as)
+
+--
+-- Natural number type
+--
+
+Nat : Type
+zero : Nat
+succ : Nat -> Nat
+
+--
+-- Fixed-length list type
+--
+
+ListN : Nat -> Type -> Type
+nilN : ListN zero a
+consN : a -> ListN n a -> ListN (succ n) a
+
+--
+-- Heterogeneous fixed-length list type
+--
+
+HetListN : (n : Nat) -> ListN n Type -> Type
+hetNilN : HetList zero nil
+hetConsN : a -> HetList n as -> HetList (succ n) (consN a as)
+
+--
+-- First, second, and third, when guaranteed by type to exist
+--
+
+HasFst : Type -> Type -> Type
+fst : {HasFst a b} -> a -> b
+
+DepPairHasFst : HasFst (DepPair a b) a
+fst (depPair x y) = x
+
+PairHasFst : HasFst (Pair a b) a
+fst (pair x y) = x
+
+TripleHasFst : HasFst (Triple a b c) a
+fst (triple x y z) = z
+
+ListNHasFst : HasFst (ListN (succ n) a) a
+fst (consN x xs) = x
+
+HetListNHasFst : HasFst (HetListN (succ n) (consN a as)) a
+fst (hetConsN x xs) = x
+
+HasSnd : Type -> Type -> Type
+snd : {HasSnd a b} -> a -> b
+
+DepPairHasSnd : HasSnd (DepPair a b) (b a)
+snd (depPair x y) = y
+
+PairHasSnd : HasSnd (Pair a b) b
+snd (pair x y) = y
+
+TripleHasSnd : HasSnd (Triple a b c) b
+snd (triple x y z) = y
+
+ListNHasSnd : HasSnd (ListN (succ (succ n)) a) a
+snd (consN x (consN y ys)) = y
+
+HetListNHasSnd : HasSnd (HetListN (succ (succ n)) (consN a (consN b bs))) b
+snd (hetConsN x (hetConsN y ys)) = y
+
+HasThd : Type -> Type -> Type
+thd : {HasThd a b} -> a -> b
+
+TripleHasThd : HasThd (Triple a b c) c
+thd (triple x y z) = z
+
+ListNHasThd : HasThd (ListN (succ (succ (succ n))) a) a
+thd (consN x (consN y (consN z zs))) = z
+
+HetListNHasThd : HasThd
+  (HetListN (succ (succ (succ n)))
+            (consN a (consN b (consN c cs))))
+thd (hetConsN x (hetConsN y (hetConsN z zs))) = z
+
+--
+-- First, second, and third, when not guaranteed by type to exist
+--
+
+HasFirst : Type -> Type -> Type
+first : {HasFirst a b} -> a -> Maybe b
+
+ListHasFirst : HasFirst (List a) a
+first nil = nothing
+first (cons x xs) = just x
+
+DepPairHasFirst : HasFirst (DepPair a b) a
+first (depPair x y) = just x
+
+PairHasFirst : HasFirst (Pair a b) a
+first (pair x y) = just x
+
+TripleHasFirst : HasFirst (Triple a b c) a
+first (triple x y z) = just x
+
+hetListFirstType : HetList as -> Type
+hetListFirstType {as = nil} hetNil = False
+hetListFirstType {as = (cons b bs)} (hetCons x xs) = b
+
+HetListHasFirst : HasFirst (HetList as) (hetListFirstType as)
+first hetNil = nothing
+first (hetCons x xs) = x
+
+ListNHasFirst : HasFirst (ListN n a) a
+first nilN = nothing
+first (consN x xs) = x
+
+hetListNFirstType : ListN n Type -> Type
+hetListNFirstType nilN = False
+hetListNFirstType (consN b bs) = b
+
+HetListNHasFirst : HasFirst (HetListN n as) (hetListNFirstType as)
+first hetNilN = nothing
+first (hetConsN x xs) = x
+
+-- TODO: second, third
+
+--
+-- Dynamic types
+--
+
+Dynamic : Type
+dynamic : {a : Type} -> a -> Dynamic
+
+fromDynamic : {a : Type} -> Dynamic -> Maybe a
+fromDynamic {a} (dynamic {a = a} x) = just x
+fromDynamic _ = nothing
+
+fromDynamicUnsafe : {a : Type} -> Dynamic -> a
+fromDynamicUnsafe {a} (dynamic {a = a} x) = x
