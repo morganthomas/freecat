@@ -5,6 +5,7 @@
 --
 
 False : Type
+fromFalsehoodAnythingFollows : False -> a
 
 --
 -- Maybe
