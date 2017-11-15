@@ -7,9 +7,6 @@
 False : Type
 fromFalsehoodAnythingFollows : False -> a
 
--- paradox is a proof of a statement which is both true and false
-paradox : False
-
 --
 -- Maybe
 --
