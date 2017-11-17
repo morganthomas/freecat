@@ -197,7 +197,9 @@ certainly Nothing = barf ErrIThoughtThisWasImpossible
 evaluate :: Context -> Expr -> FreeCat Expr
 evaluate c (SymbolExpr s) =
   case definitions s of
-    (ConstantDef e : _) -> evaluate (nativeContext s) e
+    (ConstantDef e : _) ->
+      do ec <- certainly (evaluationContext s)
+         evaluate ec e
     _ -> return (SymbolExpr s)
 evaluate c (AppExpr e0 e1) =
   do e0e <- evaluate c e0
@@ -217,11 +219,15 @@ evaluate c (AppExpr e0 e1) =
            ec <- certainly (evaluationContext s)
            evaluatePatternMatch ec (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
-        do c' <- simplyAugmentContext c (name s) (definedType s) [ConstantDef e1e]
-           evaluate c' d
+        do ec <- certainly (evaluationContext s)
+           ec' <- simplyAugmentContext ec (name s) (definedType s) [ConstantDef e1e]
+           evaluate ec' d
       FunctionTypeExpr _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
-evaluate c (LambdaExpr s t d) = return (LambdaExpr s t d)
+evaluate c (LambdaExpr s t d) =
+  do c' <- simplyAugmentContext c (name s) t []
+     s' <- certainly (lookupSymbol c' (name s))
+     return (LambdaExpr s' t d)
 evaluate c (FunctionTypeExpr a b) =
   do ae <- evaluate c a
      be <- evaluate c b
