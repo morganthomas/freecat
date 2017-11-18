@@ -213,6 +213,9 @@ evaluate c (AppExpr e0 e1) =
                evaluate ec (AppExpr d e1e)
           defs ->
             do ec <- certainly (evaluationContext s)
+               -- TODO: if pattern defs for a symbol can originate from
+               -- different contexts, then those defs can have different
+               -- evaluation contexts
                evaluatePatternMatch ec defs (AppExpr e0e e1e)
       AppExpr _ _ ->
         do s <- leadSymbol e0e
