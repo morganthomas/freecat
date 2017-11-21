@@ -16,11 +16,11 @@ import Control.Monad.IO.Class
 data LexicalToken =
     SymbolToken String
   | ColonToken
-  | ThinArrow
-  | FatArrow
-  | OpenParen
-  | CloseParen
-  | Backslash
+  | ThinArrowToken
+  | FatArrowToken
+  | OpenParenToken
+  | CloseParenToken
+  | BackslashToken
 
 --
 -- Errors
