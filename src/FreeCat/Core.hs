@@ -8,6 +8,9 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Except as E
 import Control.Monad.IO.Class
+import Text.Parsec (SourcePos)
+
+type Positioned a = (a, SourcePos)
 
 --
 -- Errors
@@ -65,7 +68,7 @@ data RawDeclaration =
  | RawEquationDeclaration RawEquation
  | RawImportDeclaration RawImport
 
-type RawContext = [RawDeclaration]
+type RawContext = [Positioned RawDeclaration]
 
 --
 -- Basic semantic structures
@@ -331,7 +334,7 @@ _unifyExprWithPattern _ _ _ = return Nothing
 
 digestContext :: RawContext -> FreeCat Context
 digestContext decls =
-  do c <- foldM addToContext rootContext decls
+  do c <- foldM addToContext rootContext (Prelude.map fst decls)
      completeContext c
 
 addToContext :: Context -> RawDeclaration -> FreeCat Context

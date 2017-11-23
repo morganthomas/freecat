@@ -3,6 +3,7 @@ module FreeCat.Parser where
 import Text.Parsec
 import FreeCat.Lexer (Token(..), PositionedToken, lexer)
 import FreeCat.Core (
+    Positioned,
     RawSymbol,
     RawExpr(..),
     RawPattern(..),
@@ -31,9 +32,10 @@ context = many declaration
 -- Declarations
 --
 
-declaration :: FreeCatParser RawDeclaration
+declaration :: FreeCatParser (Positioned RawDeclaration)
 declaration = do {
   s0 <- symbol;
+  pos <- getPosition;
   (
     (
       do exactToken ColonToken
@@ -51,10 +53,10 @@ declaration = do {
          case equation of
            Nothing ->
              case varDecls of
-               [] -> return (RawTypeDeclaration varDecl0)
+               [] -> return (RawTypeDeclaration varDecl0, pos)
                _ -> unexpected "comma after type assertion"
            Just (pat, def) ->
-             return (RawEquationDeclaration (RawEquation (varDecl0:varDecls) pat def))
+             return (RawEquationDeclaration (RawEquation (varDecl0:varDecls) pat def), pos)
     )
     <|>
     (
@@ -63,7 +65,7 @@ declaration = do {
          e <- expr
          exactToken SemicolonToken
          let pat = foldl RawAppPat (RawSymbolPat s0) argPats in
-          return (RawEquationDeclaration (RawEquation [] pat e))
+          return (RawEquationDeclaration (RawEquation [] pat e), pos)
     )
   )
 }
