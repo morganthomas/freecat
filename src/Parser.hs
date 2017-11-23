@@ -14,6 +14,12 @@ import FreeCat.Core (
 
 type FreeCatParser = Parsec [PositionedToken] ()
 
+lexAndParseContext :: String -> Either ParseError RawContext
+lexAndParseContext s = parse lexer "" s >>= parse context ""
+
+lexAndParseExpr :: String -> Either ParseError RawExpr
+lexAndParseExpr s =  parse lexer "" s >>= parse expr ""
+
 context :: FreeCatParser RawContext
 context = many declaration
 
