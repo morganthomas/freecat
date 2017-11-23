@@ -98,7 +98,9 @@ data Symbol = Symbol {
 }
 
 instance Eq Symbol where
-  s == t = name s == name t && nativeContext s == nativeContext t
+  -- temporarily loosen symbol equality relation
+  --s == t = name s == name t && nativeContext s == nativeContext t
+  s == t = name s == name t
 
 data Definition =
    ConstantDef Expr (Maybe SourcePos)
@@ -323,11 +325,9 @@ _unifyExprWithPattern (c, matches) e (SymbolPat t) =
        Just s ->
         case e of
           SymbolExpr u ->
-            -- temporarily made pattern matching easier
-            return (Just (c, matches))
-            --if u == t
-              --then return (Just (c, matches))
-              --else return Nothing
+            if u == t
+              then return (Just (c, matches))
+              else return Nothing
           _ -> return Nothing
        Nothing -> do
          c' <- simplyAugmentContext c (name t) (definedType t) Nothing [ConstantDef e Nothing]
