@@ -32,23 +32,38 @@ context = many declaration
 --
 
 declaration :: FreeCatParser RawDeclaration
-declaration = do
-  varDecl0 <- typeAssertion
-  varDecls <- many (exactToken CommaToken >> typeAssertion)
-  equation <-
-    optionMaybe (
-      do exactToken PeriodToken
-         pat <- pattern
-         def <- expr
-         return (pat, def)
+declaration = do {
+  s0 <- symbol;
+  (
+    (
+      do exactToken ColonToken
+         t0 <- expr3
+         varDecl0 <- return (RawTypeAssertion s0 t0)
+         varDecls <- many (exactToken CommaToken >> typeAssertion)
+         equation <- optionMaybe (
+             do exactToken PeriodToken
+                pat <- pattern
+                def <- expr
+                return (pat, def)
+           )
+         exactToken SemicolonToken
+         case equation of
+           Nothing ->
+             case varDecls of
+               [] -> return (RawTypeDeclaration varDecl0)
+               _ -> unexpected "comma after type assertion"
+           Just (pat, def) ->
+             return (RawEquationDeclaration (RawEquation (varDecl0:varDecls) pat def))
     )
-  case equation of
-    Nothing ->
-      case varDecls of
-        [] -> return (RawTypeDeclaration varDecl0)
-        _ -> unexpected "comma after type assertion"
-    Just (pat, def) ->
-      return (RawEquationDeclaration (RawEquation (varDecl0:varDecls) pat def))
+    <|>
+    (
+      do exactToken FatArrowToken
+         e <- expr
+         exactToken SemicolonToken
+         return (RawEquationDeclaration (RawEquation [] (RawSymbolPat s0) e))
+    )
+  )
+}
 
 typeAssertion :: FreeCatParser RawTypeAssertion
 typeAssertion = do

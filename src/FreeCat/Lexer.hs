@@ -2,10 +2,12 @@ module FreeCat.Lexer where
 
 import Text.Parsec
 import Text.Parsec.Char
+import Data.Maybe (catMaybes)
 
 data Token =
     SymbolToken String
   | CommaToken
+  | SemicolonToken
   | ColonToken
   | PeriodToken
   | ThinArrowToken
@@ -20,10 +22,15 @@ type PositionedToken = (Token, SourcePos)
 type FreeCatLexer = Parsec String ()
 
 lexer :: FreeCatLexer [PositionedToken]
-lexer = many (whitespace >> freeCatToken)
+lexer =
+  many (
+    (whitespace >> return Nothing)
+    <|>
+    (freeCatToken >>= return . Just)
+  ) >>= (return . catMaybes)
 
 whitespace :: FreeCatLexer ()
-whitespace = skipMany (space <|> endOfLine)
+whitespace = skipMany1 (space <|> endOfLine)
 
 freeCatToken :: FreeCatLexer PositionedToken
 freeCatToken =
@@ -31,6 +38,7 @@ freeCatToken =
   <|> constToken "," CommaToken
   <|> constToken "." PeriodToken
   <|> constToken ":" ColonToken
+  <|> constToken ";" SemicolonToken
   <|> constToken "->" ThinArrowToken
   <|> constToken "=>" FatArrowToken
   <|> constToken "(" OpenParenToken
