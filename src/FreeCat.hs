@@ -10,22 +10,6 @@ import Control.Monad.Trans.Except as E
 import Control.Monad.IO.Class
 
 --
--- Lexical tokens
---
-
-data LexicalToken =
-    SymbolToken String
-  | CommaToken
-  | ColonToken
-  | PeriodToken
-  | ThinArrowToken
-  | FatArrowToken
-  | OpenParenToken
-  | CloseParenToken
-  | BackslashToken
-  deriving (Eq, Show)
-
---
 -- Errors
 --
 

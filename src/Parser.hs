@@ -1,7 +1,7 @@
 module FreeCat.Parser where
 
+import FreeCat.Lexer (LexicalToken(..), lexer)
 import FreeCat.Core (
-    LexicalToken(..),
     RawSymbol,
     RawExpr(..),
     RawPattern(..),
@@ -15,22 +15,22 @@ import Text.Parsec
 
 type FreeCatParser = Parsec [LexicalToken] ()
 
-parseContext :: FreeCatParser RawContext
-parseContext = many parseDeclaration
+context :: FreeCatParser RawContext
+context = many declaration
 
 --
 -- Declarations
 --
 
-parseDeclaration :: FreeCatParser RawDeclaration
-parseDeclaration = do
-  varDecl0 <- parseTypeAssertion
-  varDecls <- many (exactToken CommaToken >> parseTypeAssertion)
+declaration :: FreeCatParser RawDeclaration
+declaration = do
+  varDecl0 <- typeAssertion
+  varDecls <- many (exactToken CommaToken >> typeAssertion)
   equation <-
     optionMaybe (
       do exactToken PeriodToken
-         pat <- parsePattern
-         def <- parseExpr
+         pat <- pattern
+         def <- expr
          return (pat, def)
     )
   case equation of
@@ -41,39 +41,39 @@ parseDeclaration = do
     Just (pat, def) ->
       return (RawEquationDeclaration (RawEquation (varDecl0:varDecls) pat def))
 
-parseTypeAssertion :: FreeCatParser RawTypeAssertion
-parseTypeAssertion = do
-  s <- parseSymbol
+typeAssertion :: FreeCatParser RawTypeAssertion
+typeAssertion = do
+  s <- symbol
   exactToken ColonToken
-  t <- parseExpr
+  t <- expr
   return (RawTypeAssertion s t)
 
 --
 -- Patterns
 --
 
-parsePattern :: FreeCatParser RawPattern
-parsePattern = parsePattern1
+pattern :: FreeCatParser RawPattern
+pattern = pattern1
 
-parsePattern1 :: FreeCatParser RawPattern
-parsePattern1 = do
-  pats <- many1 parsePattern0
+pattern1 :: FreeCatParser RawPattern
+pattern1 = do
+  pats <- many1 pattern0
   case pats of
     [pat] -> return pat
     (pat:pats) -> return (foldl RawAppPat pat pats)
 
-parsePattern0 :: FreeCatParser RawPattern
-parsePattern0 = parseSymbolPattern <|> parseParenthesizedPattern
+pattern0 :: FreeCatParser RawPattern
+pattern0 = symbolPattern <|> parenthesizedPattern
 
-parseSymbolPattern :: FreeCatParser RawPattern
-parseSymbolPattern = do
-  s <- parseSymbol
+symbolPattern :: FreeCatParser RawPattern
+symbolPattern = do
+  s <- symbol
   return (RawSymbolPat s)
 
-parseParenthesizedPattern :: FreeCatParser RawPattern
-parseParenthesizedPattern = do
+parenthesizedPattern :: FreeCatParser RawPattern
+parenthesizedPattern = do
   exactToken OpenParenToken
-  pat <- parsePattern
+  pat <- pattern
   exactToken CloseParenToken
   return pat
 
@@ -81,63 +81,63 @@ parseParenthesizedPattern = do
 -- Expressions
 --
 
-parseExpr :: FreeCatParser RawExpr
-parseExpr = parseExpr3
+expr :: FreeCatParser RawExpr
+expr = expr3
 
-parseExpr4 :: FreeCatParser RawExpr
-parseExpr4 = parseLambdaExpr <|> parseExpr3
+expr4 :: FreeCatParser RawExpr
+expr4 = lambdaExpr <|> expr3
 
-parseLambdaExpr :: FreeCatParser RawExpr
-parseLambdaExpr = do
+lambdaExpr :: FreeCatParser RawExpr
+lambdaExpr = do
   exactToken BackslashToken
-  s <- parseSymbol
+  s <- symbol
   exactToken ColonToken
-  t <- parseExpr2
+  t <- expr2
   exactToken FatArrowToken
-  e <- parseExpr3
+  e <- expr3
   return (RawLambdaExpr s t e)
 
-parseExpr3 :: FreeCatParser RawExpr
-parseExpr3 = try parseDependentFunctionType <|> parseExpr2
+expr3 :: FreeCatParser RawExpr
+expr3 = try dependentFunctionType <|> expr2
 
-parseDependentFunctionType :: FreeCatParser RawExpr
-parseDependentFunctionType = do
+dependentFunctionType :: FreeCatParser RawExpr
+dependentFunctionType = do
   exactToken OpenParenToken
-  s <- parseSymbol
+  s <- symbol
   exactToken ColonToken
-  a <- parseExpr3
+  a <- expr3
   exactToken CloseParenToken
   exactToken ThinArrowToken
-  b <- parseExpr3
+  b <- expr3
   return (RawDependentFunctionTypeExpr s a b)
 
-parseExpr2 :: FreeCatParser RawExpr
-parseExpr2 = do
-  e1 <- parseExpr1
-  e2opt <- optionMaybe (exactToken ThinArrowToken >> parseExpr3)
+expr2 :: FreeCatParser RawExpr
+expr2 = do
+  e1 <- expr1
+  e2opt <- optionMaybe (exactToken ThinArrowToken >> expr3)
   case e2opt of
     Nothing -> return e1
     Just e2 -> return (RawFunctionTypeExpr e1 e2)
 
-parseExpr1 :: FreeCatParser RawExpr
-parseExpr1 = do
-  es <- many1 parseExpr0
+expr1 :: FreeCatParser RawExpr
+expr1 = do
+  es <- many1 expr0
   case es of
     [e] -> return e
     (e:es) -> return (foldl RawAppExpr e es)
 
-parseExpr0 :: FreeCatParser RawExpr
-parseExpr0 = parseSymbolExpr <|> parseParenthesizedExpr
+expr0 :: FreeCatParser RawExpr
+expr0 = symbolExpr <|> parenthesizedExpr
 
-parseSymbolExpr :: FreeCatParser RawExpr
-parseSymbolExpr = do
-  s <- parseSymbol
+symbolExpr :: FreeCatParser RawExpr
+symbolExpr = do
+  s <- symbol
   return (RawSymbolExpr s)
 
-parseParenthesizedExpr :: FreeCatParser RawExpr
-parseParenthesizedExpr = do
+parenthesizedExpr :: FreeCatParser RawExpr
+parenthesizedExpr = do
   exactToken OpenParenToken
-  e <- parseExpr
+  e <- expr
   exactToken CloseParenToken
   return e
 
@@ -154,8 +154,8 @@ exactToken t =
     (\_ -> emptySourcePos)
     (\u -> if u == t then Just () else Nothing)
 
-parseSymbol :: FreeCatParser RawSymbol
-parseSymbol =
+symbol :: FreeCatParser RawSymbol
+symbol =
   token show
     (\_ -> emptySourcePos)
     (\u ->

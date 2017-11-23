@@ -1,8 +1,19 @@
 module FreeCat.Lexer where
 
-import FreeCat.Core (LexicalToken(..))
 import Text.Parsec
 import Text.Parsec.Char
+
+data LexicalToken =
+    SymbolToken String
+  | CommaToken
+  | ColonToken
+  | PeriodToken
+  | ThinArrowToken
+  | FatArrowToken
+  | OpenParenToken
+  | CloseParenToken
+  | BackslashToken
+  deriving (Eq, Show)
 
 lexer :: Parsec String () [LexicalToken]
 lexer = many (whitespace >> freeCatToken)
