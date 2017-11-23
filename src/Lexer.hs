@@ -13,6 +13,8 @@ whitespace = skipMany (space <|> endOfLine)
 freeCatToken :: Parsec String () LexicalToken
 freeCatToken =
       (many letter >>= \s -> return (SymbolToken s))
+  <|> (char ',' >> return CommaToken)
+  <|> (char '.' >> return PeriodToken)
   <|> (char ':' >> return ColonToken)
   <|> (char '-' >> char '>' >> return ThinArrowToken)
   <|> (char '=' >> char '>' >> return FatArrowToken)

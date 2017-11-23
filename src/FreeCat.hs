@@ -15,12 +15,15 @@ import Control.Monad.IO.Class
 
 data LexicalToken =
     SymbolToken String
+  | CommaToken
   | ColonToken
+  | PeriodToken
   | ThinArrowToken
   | FatArrowToken
   | OpenParenToken
   | CloseParenToken
   | BackslashToken
+  deriving (Eq, Show)
 
 --
 -- Errors
