@@ -331,7 +331,7 @@ _unifyExprWithPattern (c, matches) e (SymbolPat t) =
           _ -> return Nothing
        Nothing -> do
          c' <- simplyAugmentContext c (name t) (definedType t) Nothing [ConstantDef e Nothing]
-         return (Just (c, Map.insert (name t) e matches))
+         return (Just (c', Map.insert (name t) e matches))
 _unifyExprWithPattern (c0, matches0) (AppExpr e f) (AppPat p q) =
   do unifyResult1 <- _unifyExprWithPattern (c0, matches0) e p
      case unifyResult1 of
