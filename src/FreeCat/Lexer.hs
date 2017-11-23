@@ -39,7 +39,7 @@ freeCatToken =
 
 symbolToken :: FreeCatLexer PositionedToken
 symbolToken = do
-  s <- many letter
+  s <- many1 letter
   pos <- getPosition
   return (SymbolToken s, pos)
 
