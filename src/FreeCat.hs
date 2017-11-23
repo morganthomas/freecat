@@ -24,6 +24,7 @@ data Error =
  | ErrIThoughtThisWasImpossible
  | ErrExtraTypeDeclaration
  | ErrEquationWithoutMatchingTypeDeclaration
+ deriving (Show)
 
 --
 -- Parse trees
@@ -111,6 +112,13 @@ data Expr =
  | DependentFunctionTypeExpr Symbol Expr Expr
  deriving (Eq)
 
+instance Show Expr where
+  show (SymbolExpr s) = name s
+  show (AppExpr f g) = "(" ++ show f ++ " " ++ show g ++ ")"
+  show (LambdaExpr s t e) = "(\\" ++ name s ++ " : " ++ show t ++ " => " ++ show e ++ ")"
+  show (FunctionTypeExpr a b) = "(" ++ show a ++ " -> " ++ show b ++ ")"
+  show (DependentFunctionTypeExpr s a b) = "((" ++ name s ++ " : " ++ show a ++ ") -> " ++ show b ++ ")"
+
 lookupSymbol :: Context -> String -> Maybe Symbol
 lookupSymbol c s =
   case Map.lookup s (declarations c) of
@@ -162,6 +170,9 @@ initialState =
   }
 
 type FreeCat = StateT FreeCatState (E.ExceptT Error IO)
+
+runFreeCat :: FreeCat a -> IO (Either Error (a, FreeCatState))
+runFreeCat f = runExceptT $ runStateT f initialState
 
 barf :: Error -> FreeCat a
 barf e = lift (E.throwE e)
