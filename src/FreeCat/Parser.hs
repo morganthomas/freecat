@@ -43,6 +43,7 @@ declaration = do {
          equation <- optionMaybe (
              do exactToken PeriodToken
                 pat <- pattern
+                exactToken FatArrowToken
                 def <- expr
                 return (pat, def)
            )
@@ -57,10 +58,12 @@ declaration = do {
     )
     <|>
     (
-      do exactToken FatArrowToken
+      do argPats <- many pattern
+         exactToken FatArrowToken
          e <- expr
          exactToken SemicolonToken
-         return (RawEquationDeclaration (RawEquation [] (RawSymbolPat s0) e))
+         let pat = foldl RawAppPat (RawSymbolPat s0) argPats in
+          return (RawEquationDeclaration (RawEquation [] pat e))
     )
   )
 }
@@ -106,7 +109,7 @@ parenthesizedPattern = do
 --
 
 expr :: FreeCatParser RawExpr
-expr = expr3
+expr = expr4
 
 expr4 :: FreeCatParser RawExpr
 expr4 = lambdaExpr <|> expr3

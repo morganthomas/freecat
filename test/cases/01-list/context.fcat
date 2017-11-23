@@ -3,7 +3,11 @@ empty : (a : Type) -> List a;
 cons : (a : Type) -> a -> List a -> List a;
 
 map : (a : Type) -> (b : Type) -> (a -> b) -> List a -> List b;
+
+a : Type, b : Type, f : a -> b.
 map a b f (empty a) => (empty b);
+
+a : Type, b : Type, f : a -> b.
 map a b f (cons a x xs) => cons b (f x) (map a b f xs);
 
 Foo : Type;
