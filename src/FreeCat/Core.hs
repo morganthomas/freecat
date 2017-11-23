@@ -116,7 +116,10 @@ data VariableDeclaration = VarDecl Symbol Expr
 data Pattern =
    SymbolPat Symbol
  | AppPat Pattern Pattern
- deriving (Show)
+
+instance Show Pattern where
+  show (SymbolPat s) = name s
+  show (AppPat f g) = "("  ++ show f ++ " " ++ show g ++ ")"
 
 data Expr =
    SymbolExpr Symbol
@@ -198,9 +201,9 @@ runFreeCat f = runExceptT $ runStateT f initialState
 ioToFreeCat :: IO (Either Error a) -> FreeCat a
 ioToFreeCat m = lift (ExceptT m)
 
-debug :: Show a => a -> FreeCat ()
-debug x = ioToFreeCat (
-    do putStrLn (show x)
+debug :: String -> FreeCat ()
+debug s = ioToFreeCat (
+    do putStrLn s
        return (Right ())
   )
 
@@ -238,18 +241,24 @@ evaluate c (AppExpr e0 e1) =
      e1e <- evaluate c e1
      case e0e of
       SymbolExpr s ->
-        case definitions s of
-          [] -> return (AppExpr e0e e1e)
-          (ConstantDef d pos : _) ->
-            evaluate (evaluationOrNativeContext s) (AppExpr d e1e)
-          defs ->
-            -- TODO: if pattern defs for a symbol can originate from
-            -- different contexts, then those defs can have different
-            -- evaluation contexts
-            evaluatePatternMatch (evaluationOrNativeContext s) defs (AppExpr e0e e1e)
+        case lookupSymbol c (name s) of
+          Nothing -> debug ("symbol is irreducible " ++ name s) >> return (AppExpr e0e e1e)
+          Just s ->
+            case definitions s of
+              [] -> return (AppExpr e0e e1e)
+              (ConstantDef d pos : _) ->
+                evaluate (evaluationOrNativeContext s) (AppExpr d e1e)
+              defs ->
+                -- TODO: if pattern defs for a symbol can originate from
+                -- different contexts, then those defs can have different
+                -- evaluation contexts
+                evaluatePatternMatch (evaluationOrNativeContext s) defs (AppExpr e0e e1e)
       AppExpr _ _ ->
         do s <- leadSymbol e0e
-           evaluatePatternMatch (evaluationOrNativeContext s) (definitions s) (AppExpr e0e e1e)
+           case lookupSymbol c (name s) of
+             Nothing -> debug ("symbol is irreducible " ++ name s) >> return (AppExpr e0e e1e)
+             Just s ->
+                evaluatePatternMatch (evaluationOrNativeContext s) (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
         do ec' <- simplyAugmentContext (evaluationOrNativeContext s)
                      (name s) (definedType s) Nothing [ConstantDef e1e Nothing]
@@ -309,7 +318,7 @@ leadSymbol (DependentFunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFu
 -- if one matches, and throws an error if no patterns match. Assumes the
 -- subexpressions of the given expr are normalized.
 evaluatePatternMatch :: Context -> [Definition] -> Expr -> FreeCat Expr
-evaluatePatternMatch c [] e = return e
+evaluatePatternMatch c [] e = debug ("no patterns matching " ++ show e) >> return e
 evaluatePatternMatch c ((ConstantDef _ _):_) e =
   barf ErrExpectedPatternMatchDefGotConstantDef
 evaluatePatternMatch c0 ((PatternDef _ p d pos):defs) e =
@@ -327,11 +336,11 @@ unifyExprWithPattern c e pat =
   do unifyResult <- _unifyExprWithPattern (c, Map.empty) e pat
      case unifyResult of
        Just (c, matches) ->
-        debug matches >>
-        debug (Map.keys (declarations c)) >>
+        debug (show matches) >>
+        debug (show (Map.keys (declarations c))) >>
         --(certainly (Map.lookup "f" (declarations c)) >>= debug . definitions) >>
         return (Just c)
-       Nothing -> return Nothing
+       Nothing -> debug ("\ncannot unify " ++ show e ++ "\nwith\n" ++ show pat ++ "\n") >> return Nothing
 
 _unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> FreeCat (Maybe (Context, Map String Expr))
 _unifyExprWithPattern (c, matches) e (SymbolPat t) =
