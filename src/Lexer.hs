@@ -3,7 +3,7 @@ module FreeCat.Lexer where
 import Text.Parsec
 import Text.Parsec.Char
 
-data LexicalToken =
+data Token =
     SymbolToken String
   | CommaToken
   | ColonToken
@@ -15,20 +15,36 @@ data LexicalToken =
   | BackslashToken
   deriving (Eq, Show)
 
-lexer :: Parsec String () [LexicalToken]
+type PositionedToken = (Token, SourcePos)
+
+type FreeCatLexer = Parsec String ()
+
+lexer :: FreeCatLexer [PositionedToken]
 lexer = many (whitespace >> freeCatToken)
 
-whitespace :: Parsec String () ()
+whitespace :: FreeCatLexer ()
 whitespace = skipMany (space <|> endOfLine)
 
-freeCatToken :: Parsec String () LexicalToken
+freeCatToken :: FreeCatLexer PositionedToken
 freeCatToken =
-      (many letter >>= \s -> return (SymbolToken s))
-  <|> (char ',' >> return CommaToken)
-  <|> (char '.' >> return PeriodToken)
-  <|> (char ':' >> return ColonToken)
-  <|> (char '-' >> char '>' >> return ThinArrowToken)
-  <|> (char '=' >> char '>' >> return FatArrowToken)
-  <|> (char '(' >> return OpenParenToken)
-  <|> (char ')' >> return CloseParenToken)
-  <|> (char '\\' >> return BackslashToken)
+      symbolToken
+  <|> constToken "," CommaToken
+  <|> constToken "." PeriodToken
+  <|> constToken ":" ColonToken
+  <|> constToken "->" ThinArrowToken
+  <|> constToken "=>" FatArrowToken
+  <|> constToken "(" OpenParenToken
+  <|> constToken ")" CloseParenToken
+  <|> constToken "\\" BackslashToken
+
+symbolToken :: FreeCatLexer PositionedToken
+symbolToken = do
+  s <- many letter
+  pos <- getPosition
+  return (SymbolToken s, pos)
+
+constToken :: String -> Token -> FreeCatLexer PositionedToken
+constToken s tok = do
+  pos <- getPosition
+  mapM char s
+  return (tok, pos)

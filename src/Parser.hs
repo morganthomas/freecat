@@ -1,6 +1,7 @@
 module FreeCat.Parser where
 
-import FreeCat.Lexer (LexicalToken(..), lexer)
+import Text.Parsec
+import FreeCat.Lexer (Token(..), PositionedToken, lexer)
 import FreeCat.Core (
     RawSymbol,
     RawExpr(..),
@@ -11,9 +12,7 @@ import FreeCat.Core (
     RawContext
   )
 
-import Text.Parsec
-
-type FreeCatParser = Parsec [LexicalToken] ()
+type FreeCatParser = Parsec [PositionedToken] ()
 
 context :: FreeCatParser RawContext
 context = many declaration
@@ -145,20 +144,17 @@ parenthesizedExpr = do
 -- Individual tokens
 --
 
-emptySourcePos :: SourcePos
-emptySourcePos = undefined
-
-exactToken :: LexicalToken -> FreeCatParser ()
+exactToken :: Token -> FreeCatParser ()
 exactToken t =
   token show
-    (\_ -> emptySourcePos)
-    (\u -> if u == t then Just () else Nothing)
+    (\(u,pos) -> pos)
+    (\(u,pos) -> if u == t then Just () else Nothing)
 
 symbol :: FreeCatParser RawSymbol
 symbol =
   token show
-    (\_ -> emptySourcePos)
-    (\u ->
-      case u of
+    (\(tok,pos) -> pos)
+    (\(tok,pos) ->
+      case tok of
         SymbolToken s -> Just s
         _ -> Nothing)
