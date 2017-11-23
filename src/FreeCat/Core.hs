@@ -152,6 +152,12 @@ rootTypeSymbol =
     evaluationContext = Nothing
   }
 
+evaluationOrNativeContext :: Symbol -> Context
+evaluationOrNativeContext s =
+  case evaluationContext s of
+    Just c -> c
+    Nothing -> nativeContext s
+
 typeOfTypes :: Expr
 typeOfTypes = SymbolExpr rootTypeSymbol
 
@@ -203,11 +209,9 @@ evaluate :: Context -> Expr -> FreeCat Expr
 evaluate c (SymbolExpr s) =
   case definitions s of
     (ConstantDef e pos : _) ->
-      do ec <- certainly (evaluationContext s)
-         evaluate ec e
+      evaluate (evaluationOrNativeContext s) e
     (PatternDef [] (SymbolPat _) e pos : _) ->
-      do ec <- certainly (evaluationContext s)
-         evaluate ec e
+      evaluate (evaluationOrNativeContext s) e
     _ -> return (SymbolExpr s)
 evaluate c (AppExpr e0 e1) =
   do e0e <- evaluate c e0
@@ -217,21 +221,18 @@ evaluate c (AppExpr e0 e1) =
         case definitions s of
           [] -> return (AppExpr e0e e1e)
           (ConstantDef d pos : _) ->
-            do ec <- certainly (evaluationContext s)
-               evaluate ec (AppExpr d e1e)
+            evaluate (evaluationOrNativeContext s) (AppExpr d e1e)
           defs ->
-            do ec <- certainly (evaluationContext s)
-               -- TODO: if pattern defs for a symbol can originate from
-               -- different contexts, then those defs can have different
-               -- evaluation contexts
-               evaluatePatternMatch ec defs (AppExpr e0e e1e)
+            -- TODO: if pattern defs for a symbol can originate from
+            -- different contexts, then those defs can have different
+            -- evaluation contexts
+            evaluatePatternMatch (evaluationOrNativeContext s) defs (AppExpr e0e e1e)
       AppExpr _ _ ->
         do s <- leadSymbol e0e
-           ec <- certainly (evaluationContext s)
-           evaluatePatternMatch ec (definitions s) (AppExpr e0e e1e)
+           evaluatePatternMatch (evaluationOrNativeContext s) (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
-        do ec <- certainly (evaluationContext s)
-           ec' <- simplyAugmentContext ec (name s) (definedType s) Nothing [ConstantDef e1e Nothing]
+        do ec' <- simplyAugmentContext (evaluationOrNativeContext s)
+                     (name s) (definedType s) Nothing [ConstantDef e1e Nothing]
            evaluate ec' d
       FunctionTypeExpr _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
@@ -312,17 +313,21 @@ _unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> FreeCa
 _unifyExprWithPattern (c, matches) e (SymbolPat t) =
   case Map.lookup (name t) matches of
     Just v ->
-      if e == v -- TODO: weaken equivalence notion?
-        then return (Just (c, matches))
-        else return Nothing
+      -- temporarily made pattern matching easier
+      return (Just (c, matches))
+      --if e == v -- TODO: weaken equivalence notion?
+        --then return (Just (c, matches))
+        --else return Nothing
     Nothing ->
       case lookupSymbol c (name t) of
        Just s ->
         case e of
           SymbolExpr u ->
-            if u == t
-              then return (Just (c, matches))
-              else return Nothing
+            -- temporarily made pattern matching easier
+            return (Just (c, matches))
+            --if u == t
+              --then return (Just (c, matches))
+              --else return Nothing
           _ -> return Nothing
        Nothing -> do
          c' <- simplyAugmentContext c (name t) (definedType t) Nothing [ConstantDef e Nothing]
