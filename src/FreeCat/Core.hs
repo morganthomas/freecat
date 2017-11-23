@@ -189,6 +189,15 @@ type FreeCat = StateT FreeCatState (E.ExceptT Error IO)
 runFreeCat :: FreeCat a -> IO (Either Error (a, FreeCatState))
 runFreeCat f = runExceptT $ runStateT f initialState
 
+ioToFreeCat :: IO (Either Error a) -> FreeCat a
+ioToFreeCat m = lift (ExceptT m)
+
+debug :: Show a => a -> FreeCat ()
+debug x = ioToFreeCat (
+    do putStrLn (show x)
+       return (Right ())
+  )
+
 barf :: Error -> FreeCat a
 barf e = lift (E.throwE e)
 
