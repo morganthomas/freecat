@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 -- Core syntactic and semantic definitions
 -- The central processing unit
 module FreeCat.Core where
@@ -86,6 +88,7 @@ data Context = Context {
 data Symbol = Symbol {
   name :: String,
   definedType :: Expr,
+  declarationSourcePos :: Maybe SourcePos,
   -- all pattern definitions have this symbol as their lead symbol
   definitions :: [Definition],
   -- the context in which the symbol was originally defined
@@ -98,8 +101,8 @@ instance Eq Symbol where
   s == t = name s == name t && nativeContext s == nativeContext t
 
 data Definition =
-   ConstantDef Expr
- | PatternDef [VariableDeclaration] Pattern Expr
+   ConstantDef Expr (Maybe SourcePos)
+ | PatternDef [VariableDeclaration] Pattern Expr (Maybe SourcePos)
 
 data VariableDeclaration = VarDecl Symbol Expr
 
@@ -143,6 +146,7 @@ rootTypeSymbol =
   Symbol {
     name = rawTypeSymbol,
     definedType = typeOfTypes,
+    declarationSourcePos = Nothing,
     definitions = [],
     nativeContext = rootContext,
     evaluationContext = Nothing
@@ -198,7 +202,7 @@ certainly Nothing = barf ErrIThoughtThisWasImpossible
 evaluate :: Context -> Expr -> FreeCat Expr
 evaluate c (SymbolExpr s) =
   case definitions s of
-    (ConstantDef e : _) ->
+    (ConstantDef e pos : _) ->
       do ec <- certainly (evaluationContext s)
          evaluate ec e
     _ -> return (SymbolExpr s)
@@ -209,7 +213,7 @@ evaluate c (AppExpr e0 e1) =
       SymbolExpr s ->
         case definitions s of
           [] -> return (AppExpr e0e e1e)
-          (ConstantDef d : _) ->
+          (ConstantDef d pos : _) ->
             do ec <- certainly (evaluationContext s)
                evaluate ec (AppExpr d e1e)
           defs ->
@@ -224,12 +228,12 @@ evaluate c (AppExpr e0 e1) =
            evaluatePatternMatch ec (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
         do ec <- certainly (evaluationContext s)
-           ec' <- simplyAugmentContext ec (name s) (definedType s) [ConstantDef e1e]
+           ec' <- simplyAugmentContext ec (name s) (definedType s) Nothing [ConstantDef e1e Nothing]
            evaluate ec' d
       FunctionTypeExpr _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
 evaluate c (LambdaExpr s t d) =
-  do c' <- simplyAugmentContext c (name s) t []
+  do c' <- simplyAugmentContext c (name s) t (declarationSourcePos s) []
      s' <- certainly (lookupSymbol c' (name s))
      return (LambdaExpr s' t d)
 evaluate c (FunctionTypeExpr a b) =
@@ -240,13 +244,15 @@ evaluate c (DependentFunctionTypeExpr s a b) = return (DependentFunctionTypeExpr
 
 -- Creates a new context which has the given context as parent and has a symbol
 -- with the given name, type, and definitions.
-simplyAugmentContext :: Context -> String -> Expr -> [Definition] -> FreeCat Context
-simplyAugmentContext parentContext vName vType vDefs =
+simplyAugmentContext :: Context -> String -> Expr -> Maybe SourcePos ->
+  [Definition] -> FreeCat Context
+simplyAugmentContext parentContext vName vType pos vDefs =
   do contextId <- popContextId
-     return $ _simplyAugmentContext parentContext vName vType vDefs contextId
+     return $ _simplyAugmentContext parentContext vName vType pos vDefs contextId
 
-_simplyAugmentContext :: Context -> String -> Expr -> [Definition] -> Integer -> Context
-_simplyAugmentContext parentContext vName vType vDefs contextId =
+_simplyAugmentContext :: Context -> String -> Expr -> Maybe SourcePos ->
+  [Definition] -> Integer -> Context
+_simplyAugmentContext parentContext vName vType pos vDefs contextId =
   let newContext =
         Context {
           contextId = contextId,
@@ -259,6 +265,7 @@ _simplyAugmentContext parentContext vName vType vDefs contextId =
         Symbol {
           name = vName,
           definedType = vType,
+          declarationSourcePos = pos,
           definitions = vDefs,
           nativeContext = newContext,
           evaluationContext = Nothing
@@ -279,9 +286,9 @@ leadSymbol (DependentFunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFu
 -- subexpressions of the given expr are normalized.
 evaluatePatternMatch :: Context -> [Definition] -> Expr -> FreeCat Expr
 evaluatePatternMatch c [] e = return e
-evaluatePatternMatch c ((ConstantDef _):_) e =
+evaluatePatternMatch c ((ConstantDef _ _):_) e =
   barf ErrExpectedPatternMatchDefGotConstantDef
-evaluatePatternMatch c0 ((PatternDef _ p d):defs) e =
+evaluatePatternMatch c0 ((PatternDef _ p d pos):defs) e =
   do unifyResult <- unifyExprWithPattern c0 e p
      case unifyResult of
       Just c1 -> evaluate c1 d
@@ -315,7 +322,7 @@ _unifyExprWithPattern (c, matches) e (SymbolPat t) =
               else return Nothing
           _ -> return Nothing
        Nothing -> do
-         c' <- simplyAugmentContext c (name t) (definedType t) [ConstantDef e]
+         c' <- simplyAugmentContext c (name t) (definedType t) Nothing [ConstantDef e Nothing]
          return (Just (c, Map.insert (name t) e matches))
 _unifyExprWithPattern (c0, matches0) (AppExpr e f) (AppPat p q) =
   do unifyResult1 <- _unifyExprWithPattern (c0, matches0) e p
@@ -334,23 +341,52 @@ _unifyExprWithPattern _ _ _ = return Nothing
 
 digestContext :: RawContext -> FreeCat Context
 digestContext decls =
-  do c <- foldM addToContext rootContext (Prelude.map fst decls)
+  do c <- foldM addToContext rootContext decls
      completeContext c
 
-addToContext :: Context -> RawDeclaration -> FreeCat Context
-addToContext c (RawTypeDeclaration assertion) = digestTypeAssertion c assertion
-addToContext c (RawImportDeclaration _) = error "import not implemented"
-addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef)) =
+addToContext :: Context -> Positioned RawDeclaration -> FreeCat Context
+addToContext c (RawTypeDeclaration assertion, pos) =
+  digestTypeAssertion c (assertion, Just pos)
+addToContext c (RawImportDeclaration _, pos) = error "import not implemented"
+addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef), pos) =
  case lookupSymbol c (rawPatternLeadSymbol rawpat) of
    Nothing -> barf ErrEquationWithoutMatchingTypeDeclaration
    Just sym ->
-     do cPat <- foldM digestTypeAssertion c rawdecls
+     do cPat <- foldM digestTypeAssertion c (Prelude.map (,Nothing) rawdecls)
         pat <- digestPattern cPat rawpat
         (def, defType) <- digestExpr cPat rawdef
         assertTypesMatch cPat defType (nativeContext sym) (definedType sym)
         decls <- mapM (digestVarDecl cPat) rawdecls
-        simplyAugmentContext c (name sym) (definedType sym)
-          (definitions sym ++ [ PatternDef decls pat def ]) -- TODO: less consing
+        simplyAugmentContext c (name sym) (definedType sym) (declarationSourcePos sym)
+          (definitions sym ++ [ (PatternDef decls pat def (Just pos)) ]) -- TODO: less consing
+
+digestTypeAssertion :: Context -> (RawTypeAssertion, Maybe SourcePos) -> FreeCat Context
+digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
+  case lookupSymbol c s of
+    Just _ -> barf ErrExtraTypeDeclaration
+    Nothing ->
+      do (t, tt) <- digestExpr c rawt
+         assertTypesMatch c tt rootContext typeOfTypes
+         c' <- simplyAugmentContext c s t pos []
+         return c'
+
+digestPattern :: Context -> RawPattern -> FreeCat Pattern
+digestPattern c (RawSymbolPat s) =
+  case lookupSymbol c s of
+    Just sym -> return (SymbolPat sym)
+    Nothing -> barf ErrSymbolNotDefined
+digestPattern c (RawAppPat p q) =
+  do pd <- digestPattern c p
+     pq <- digestPattern c q
+     return (AppPat pd pq)
+
+-- cPat is assumed to contain a declaration generated from this type
+-- assertion via digestTypeAssertion
+digestVarDecl :: Context -> RawTypeAssertion -> FreeCat VariableDeclaration
+digestVarDecl cPat (RawTypeAssertion s _) =
+  do sym <- certainly (lookupSymbol cPat s)
+     return (VarDecl sym (definedType sym))
+
 
 -- Assumes all symbols used in RawExpr are defined in Context.
 -- Returns a pair of the digested expr and its inferred type.
@@ -369,7 +405,7 @@ digestExpr c (RawAppExpr e0 e1) =
             return b
        DependentFunctionTypeExpr s a b ->
          do assertTypesMatch c a c e1dType
-            c' <- simplyAugmentContext c (name s) a [ConstantDef e1d]
+            c' <- simplyAugmentContext c (name s) a Nothing [ConstantDef e1d Nothing]
             bEv <- evaluate c' b
             return bEv
        _ -> barf ErrAppHeadIsNotFunctionTyped
@@ -377,7 +413,7 @@ digestExpr c (RawAppExpr e0 e1) =
 digestExpr c (RawLambdaExpr s t d) =
   do (td, tdType) <- digestExpr c t
      assertTypesMatch c tdType rootContext typeOfTypes
-     c' <- simplyAugmentContext c s td []
+     c' <- simplyAugmentContext c s td Nothing []
      (dd, ddType) <- digestExpr c' d
      sym <- certainly (lookupSymbol c' s)
      return (
@@ -393,7 +429,7 @@ digestExpr c (RawFunctionTypeExpr a b) =
 digestExpr c (RawDependentFunctionTypeExpr s a b) =
   do (ad, adType) <- digestExpr c a
      assertTypesMatch c adType rootContext typeOfTypes
-     c' <- simplyAugmentContext c s ad []
+     c' <- simplyAugmentContext c s ad Nothing []
      sym <- certainly (lookupSymbol c' s)
      (bd, bdType) <- digestExpr c' b
      assertTypesMatch c' bdType rootContext typeOfTypes
@@ -407,33 +443,6 @@ assertTypesMatch ac a bc b =
      bEv <- evaluate bc b
      -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
      if aEv == bEv then return () else barf ErrTypeMismatch
-
-digestPattern :: Context -> RawPattern -> FreeCat Pattern
-digestPattern c (RawSymbolPat s) =
-  case lookupSymbol c s of
-    Just sym -> return (SymbolPat sym)
-    Nothing -> barf ErrSymbolNotDefined
-digestPattern c (RawAppPat p q) =
-  do pd <- digestPattern c p
-     pq <- digestPattern c q
-     return (AppPat pd pq)
-
-digestTypeAssertion :: Context -> RawTypeAssertion -> FreeCat Context
-digestTypeAssertion c (RawTypeAssertion s rawt) =
-  case lookupSymbol c s of
-    Just _ -> barf ErrExtraTypeDeclaration
-    Nothing ->
-      do (t, tt) <- digestExpr c rawt
-         assertTypesMatch c tt rootContext typeOfTypes
-         c' <- simplyAugmentContext c s t []
-         return c'
-
--- cPat is assumed to contain a declaration generated from this type
--- assertion via digestTypeAssertion
-digestVarDecl :: Context -> RawTypeAssertion -> FreeCat VariableDeclaration
-digestVarDecl cPat (RawTypeAssertion s _) =
-  do sym <- certainly (lookupSymbol cPat s)
-     return (VarDecl sym (definedType sym))
 
 completeContext :: Context -> FreeCat Context
 completeContext c =
@@ -452,6 +461,7 @@ addEvaluationContextToSymbol ec s =
   Symbol {
     name = name s,
     definedType = addEvaluationContextToExpr ec (definedType s),
+    declarationSourcePos = declarationSourcePos s,
     definitions = Prelude.map (addEvaluationContextToDefinition ec) (definitions s),
     nativeContext = nativeContext s,
     evaluationContext = Just ec
@@ -497,11 +507,11 @@ addEvaluationContextToVariableDeclaration ec (VarDecl s t) =
     in VarDecl s t'
 
 addEvaluationContextToDefinition :: Context -> Definition -> Definition
-addEvaluationContextToDefinition ec (ConstantDef e) =
+addEvaluationContextToDefinition ec (ConstantDef e pos) =
   let e' = addEvaluationContextToExpr ec e'
-    in ConstantDef e'
-addEvaluationContextToDefinition ec (PatternDef decls pat e) =
+    in (ConstantDef e' pos)
+addEvaluationContextToDefinition ec (PatternDef decls pat e pos) =
   let decls' = Prelude.map (addEvaluationContextToVariableDeclaration ec) decls
       pat' = addEvaluationContextToPattern ec pat
       e' = addEvaluationContextToExpr ec e
-    in PatternDef decls' pat' e'
+    in (PatternDef decls' pat' e' pos)
