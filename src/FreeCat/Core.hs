@@ -205,6 +205,9 @@ evaluate c (SymbolExpr s) =
     (ConstantDef e pos : _) ->
       do ec <- certainly (evaluationContext s)
          evaluate ec e
+    (PatternDef [] (SymbolPat _) e pos : _) ->
+      do ec <- certainly (evaluationContext s)
+         evaluate ec e
     _ -> return (SymbolExpr s)
 evaluate c (AppExpr e0 e1) =
   do e0e <- evaluate c e0
