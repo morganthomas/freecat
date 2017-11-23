@@ -102,15 +102,21 @@ instance Eq Symbol where
   --s == t = name s == name t && nativeContext s == nativeContext t
   s == t = name s == name t
 
+instance Show Symbol where
+  show = name
+
 data Definition =
    ConstantDef Expr (Maybe SourcePos)
  | PatternDef [VariableDeclaration] Pattern Expr (Maybe SourcePos)
+ deriving (Show)
 
 data VariableDeclaration = VarDecl Symbol Expr
+ deriving (Show)
 
 data Pattern =
    SymbolPat Symbol
  | AppPat Pattern Pattern
+ deriving (Show)
 
 data Expr =
    SymbolExpr Symbol
@@ -139,8 +145,8 @@ rootContext =
     contextId = 0,
     uri = Nothing,
     parentContext = Nothing,
-    declarations = Map.singleton rawTypeSymbol rootTypeSymbol,
-    importedSymbols = empty
+    declarations = Map.empty,
+    importedSymbols = Map.singleton rawTypeSymbol rootTypeSymbol
   }
 
 rootTypeSymbol :: Symbol
@@ -217,13 +223,16 @@ certainly Nothing = barf ErrIThoughtThisWasImpossible
 --
 
 evaluate :: Context -> Expr -> FreeCat Expr
-evaluate c (SymbolExpr s) =
-  case definitions s of
-    (ConstantDef e pos : _) ->
-      evaluate (evaluationOrNativeContext s) e
-    (PatternDef [] (SymbolPat _) e pos : _) ->
-      evaluate (evaluationOrNativeContext s) e
-    _ -> return (SymbolExpr s)
+evaluate c (SymbolExpr s) = do
+  case lookupSymbol c (name s) of
+    Nothing -> debug ("symbol is irreducible " ++ name s) >> return (SymbolExpr s)
+    Just s' ->
+      case definitions s' of
+        (ConstantDef e pos : _) ->
+          evaluate (evaluationOrNativeContext s) e
+        (PatternDef [] (SymbolPat _) e pos : _) ->
+          evaluate (evaluationOrNativeContext s) e
+        _ -> debug ("symbol is irreducible " ++ name s) >> return (SymbolExpr s)
 evaluate c (AppExpr e0 e1) =
   do e0e <- evaluate c e0
      e1e <- evaluate c e1
@@ -274,7 +283,7 @@ _simplyAugmentContext parentContext vName vType pos vDefs contextId =
           uri = Nothing,
           parentContext = Just parentContext,
           declarations = Map.insert vName newSymbol (declarations parentContext),
-          importedSymbols = Map.empty
+          importedSymbols = (importedSymbols parentContext)
         }
       newSymbol =
         Symbol {
@@ -317,7 +326,11 @@ unifyExprWithPattern :: Context -> Expr -> Pattern -> FreeCat (Maybe Context)
 unifyExprWithPattern c e pat =
   do unifyResult <- _unifyExprWithPattern (c, Map.empty) e pat
      case unifyResult of
-       Just (c, matches) -> return (Just c)
+       Just (c, matches) ->
+        debug matches >>
+        debug (Map.keys (declarations c)) >>
+        --(certainly (Map.lookup "f" (declarations c)) >>= debug . definitions) >>
+        return (Just c)
        Nothing -> return Nothing
 
 _unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> FreeCat (Maybe (Context, Map String Expr))
@@ -349,7 +362,7 @@ _unifyExprWithPattern (c0, matches0) (AppExpr e f) (AppPat p q) =
         do unifyResult2 <- _unifyExprWithPattern (c1, matches1) f q
            case unifyResult2 of
              Nothing -> return Nothing
-             something@(Just (c2, matches2)) -> return something
+             Just (c2, matches2) -> return unifyResult2
 _unifyExprWithPattern _ _ _ = return Nothing
 
 --
