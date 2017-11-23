@@ -23,7 +23,7 @@ data Error =
  | ErrExpectedLeadSymbolFoundLambda
  | ErrExpectedLeadSymbolFoundFunctionType
  | ErrExpectedPatternMatchDefGotConstantDef
- | ErrSymbolNotDefined
+ | ErrSymbolNotDefined String
  | ErrAppHeadIsNotFunctionTyped
  | ErrTypeMismatch
  | ErrIThoughtThisWasImpossible
@@ -355,7 +355,7 @@ addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef), pos
      do cPat <- foldM digestTypeAssertion c (Prelude.map (,Nothing) rawdecls)
         pat <- digestPattern cPat rawpat
         (def, defType) <- digestExpr cPat rawdef
-        assertTypesMatch cPat defType (nativeContext sym) (definedType sym)
+        --assertTypesMatch cPat defType (nativeContext sym) (definedType sym)
         decls <- mapM (digestVarDecl cPat) rawdecls
         simplyAugmentContext c (name sym) (definedType sym) (declarationSourcePos sym)
           (definitions sym ++ [ (PatternDef decls pat def (Just pos)) ]) -- TODO: less consing
@@ -366,7 +366,7 @@ digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
     Just _ -> barf ErrExtraTypeDeclaration
     Nothing ->
       do (t, tt) <- digestExpr c rawt
-         assertTypesMatch c tt rootContext typeOfTypes
+         --assertTypesMatch c tt rootContext typeOfTypes
          c' <- simplyAugmentContext c s t pos []
          return c'
 
@@ -374,7 +374,7 @@ digestPattern :: Context -> RawPattern -> FreeCat Pattern
 digestPattern c (RawSymbolPat s) =
   case lookupSymbol c s of
     Just sym -> return (SymbolPat sym)
-    Nothing -> barf ErrSymbolNotDefined
+    Nothing -> barf (ErrSymbolNotDefined s)
 digestPattern c (RawAppPat p q) =
   do pd <- digestPattern c p
      pq <- digestPattern c q
@@ -394,17 +394,17 @@ digestExpr :: Context -> RawExpr -> FreeCat (Expr, Expr)
 digestExpr c (RawSymbolExpr s) =
   case lookupSymbol c s of
     Just sym -> return (SymbolExpr sym, definedType sym)
-    Nothing -> barf ErrSymbolNotDefined
+    Nothing -> barf (ErrSymbolNotDefined s)
 digestExpr c (RawAppExpr e0 e1) =
   do (e0d, e0dType) <- digestExpr c e0
      (e1d, e1dType) <- digestExpr c e1
      e0dTypeNorm <- evaluate c e0dType
      appType <- case e0dType of
        FunctionTypeExpr a b ->
-         do assertTypesMatch c a c e1dType
+         do --assertTypesMatch c a c e1dType
             return b
        DependentFunctionTypeExpr s a b ->
-         do assertTypesMatch c a c e1dType
+         do --assertTypesMatch c a c e1dType
             c' <- simplyAugmentContext c (name s) a Nothing [ConstantDef e1d Nothing]
             bEv <- evaluate c' b
             return bEv
@@ -412,7 +412,7 @@ digestExpr c (RawAppExpr e0 e1) =
      return ((AppExpr e0d e1d), appType)
 digestExpr c (RawLambdaExpr s t d) =
   do (td, tdType) <- digestExpr c t
-     assertTypesMatch c tdType rootContext typeOfTypes
+     --assertTypesMatch c tdType rootContext typeOfTypes
      c' <- simplyAugmentContext c s td Nothing []
      (dd, ddType) <- digestExpr c' d
      sym <- certainly (lookupSymbol c' s)
@@ -422,17 +422,17 @@ digestExpr c (RawLambdaExpr s t d) =
       )
 digestExpr c (RawFunctionTypeExpr a b) =
   do (ad, adType) <- digestExpr c a
-     assertTypesMatch c adType rootContext typeOfTypes
+     --assertTypesMatch c adType rootContext typeOfTypes
      (bd, bdType) <- digestExpr c b
-     assertTypesMatch c bdType rootContext typeOfTypes
+     --assertTypesMatch c bdType rootContext typeOfTypes
      return (FunctionTypeExpr ad bd, typeOfTypes)
 digestExpr c (RawDependentFunctionTypeExpr s a b) =
   do (ad, adType) <- digestExpr c a
-     assertTypesMatch c adType rootContext typeOfTypes
+     --assertTypesMatch c adType rootContext typeOfTypes
      c' <- simplyAugmentContext c s ad Nothing []
      sym <- certainly (lookupSymbol c' s)
      (bd, bdType) <- digestExpr c' b
-     assertTypesMatch c' bdType rootContext typeOfTypes
+     --assertTypesMatch c' bdType rootContext typeOfTypes
      return (DependentFunctionTypeExpr sym ad bd, typeOfTypes)
 
 -- Throws an error unless the two exprs match as types. For now this
