@@ -329,14 +329,14 @@ evaluatePatternMatch c0 ((PatternDef _ p d pos):defs) e =
 -- That assumes expr can be unified with pattern. If not returns nothing.
 -- Assumes expr is evaluated (i.e. in normal form).
 unifyExprWithPattern :: Context -> Expr -> Pattern -> FreeCat (Maybe Context)
-unifyExprWithPattern c e pat =
-  do unifyResult <- _unifyExprWithPattern (c, Map.empty) e pat
+unifyExprWithPattern c0 e pat =
+  do unifyResult <- _unifyExprWithPattern (c0, Map.empty) e pat
      case unifyResult of
-       Just (c, matches) ->
+       Just (c1, matches) ->
         debug (show matches) >>
-        debug (show (Map.keys (declarations c))) >>
+        debug (show (Map.keys (declarations c1))) >>
         --(certainly (Map.lookup "f" (declarations c)) >>= debug . definitions) >>
-        return (Just c)
+        return (Just c1)
        Nothing -> debug ("cannot unify " ++ show e ++ " with " ++ show pat) >> return Nothing
 
 _unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> FreeCat (Maybe (Context, Map String Expr))
