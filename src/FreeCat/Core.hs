@@ -369,9 +369,11 @@ _unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> FreeCa
 _unifyExprWithPattern (c, matches) e (SymbolPat t) =
   case Map.lookup (name t) matches of
     Just v ->
-      if e == v -- TODO: weaken equivalence notion?
-        then return (Just (c, matches))
-        else return Nothing
+      -- temporarily allow anything for a duplicate pattern variable
+      return (Just (c, matches))
+      --if e == v -- TODO: weaken equivalence notion?
+        --then return (Just (c, matches))
+        --else debug "thing one" >> return Nothing
     Nothing ->
       case lookupSymbol c (name t) of
        Just s ->
@@ -379,8 +381,8 @@ _unifyExprWithPattern (c, matches) e (SymbolPat t) =
           SymbolExpr u _ ->
             if u == t
               then return (Just (c, matches))
-              else return Nothing
-          _ -> return Nothing
+              else debug "thing two" >> return Nothing
+          _ -> debug "thing three" >> return Nothing
        Nothing -> do
          c' <- simplyAugmentContext c (name t) (definedType t) Nothing [ConstantDef e Nothing]
          return (Just (c', Map.insert (name t) e matches))
