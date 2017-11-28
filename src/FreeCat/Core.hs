@@ -102,7 +102,9 @@ data Symbol = Symbol {
 }
 
 instance Eq Symbol where
-  s == t = name s == name t && nativeContext s == nativeContext t
+  -- temporarily weaken symbol equality
+  s == t = name s == name t
+  --s == t = name s == name t && nativeContext s == nativeContext t
 
 instance Show Symbol where
   show = name
@@ -369,7 +371,7 @@ _unifyExprWithPattern (c, matches) e (SymbolPat t) =
     Just v ->
       if e == v -- TODO: weaken equivalence notion?
         then return (Just (c, matches))
-        else error "this is an interesting branch" >> return Nothing
+        else return Nothing
     Nothing ->
       case lookupSymbol c (name t) of
        Just s ->
