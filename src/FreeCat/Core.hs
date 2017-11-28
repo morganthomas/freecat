@@ -229,6 +229,7 @@ certainly Nothing = barf ErrIThoughtThisWasImpossible
 
 evaluate :: Context -> Expr -> FreeCat Expr
 evaluate c (SymbolExpr s pos) = do
+  debug ("evaluate c " ++ (name s) ++ " where c = " ++ show c ++ "\n~~\n")
   case lookupSymbol c (name s) of
     Nothing ->
       barf (ErrSymbolNotDefined c pos (name s))
@@ -239,9 +240,10 @@ evaluate c (SymbolExpr s pos) = do
         (PatternDef [] (SymbolPat _) e pos : _) ->
           evaluate (evaluationOrNativeContext s) e
         _ -> debug ("symbol is irreducible 2 " ++ name s) >> return (SymbolExpr s pos)
-evaluate c (AppExpr e0 e1 pos) =
+evaluate c e@(AppExpr e0 e1 pos) =
   do e0e <- evaluate c e0
      e1e <- evaluate c e1
+     debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
      case e0e of
       SymbolExpr s pos ->
         case lookupSymbol c (name s) of
@@ -268,15 +270,18 @@ evaluate c (AppExpr e0 e1 pos) =
            evaluate ec' d
       FunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ _ -> barf ErrFunctionTypeOnAppLHS
-evaluate c (LambdaExpr s t d pos) =
-  do c' <- simplyAugmentContext c (name s) t (declarationSourcePos s) []
+evaluate c e@(LambdaExpr s t d pos) =
+  do debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
+     c' <- simplyAugmentContext c (name s) t (declarationSourcePos s) []
      s' <- certainly (lookupSymbol c' (name s))
      return (LambdaExpr s' t d pos)
-evaluate c (FunctionTypeExpr a b pos) =
-  do ae <- evaluate c a
+evaluate c e@(FunctionTypeExpr a b pos) =
+  do debug ("evaluate c " ++ show e ++ " where c = " ++ show c)
+     ae <- evaluate c a
      be <- evaluate c b
      return (FunctionTypeExpr ae be pos)
-evaluate c e@(DependentFunctionTypeExpr s a b pos) = return e
+evaluate c e@(DependentFunctionTypeExpr s a b pos) = debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
+  >> return e
 
 -- Creates a new context which has the given context as parent and has a symbol
 -- with the given name, type, and definitions.
@@ -441,11 +446,11 @@ digestExpr c (RawAppExpr pos e0 e1) =
        FunctionTypeExpr a b pos ->
          do --assertTypesMatch c a c e1dType
             return b
-       DependentFunctionTypeExpr s a b pos ->
-         do --assertTypesMatch c a c e1dType
-            c' <- simplyAugmentContext c (name s) a Nothing [ConstantDef e1d Nothing]
-            bEv <- evaluate c' b
-            return bEv
+       DependentFunctionTypeExpr s a b pos -> return b -- temporarily simplify
+         --do assertTypesMatch c a c e1dType
+            --c' <- simplyAugmentContext c (name s) a Nothing [ConstantDef e1d Nothing]
+            --bEv <- evaluate c' b
+            --return bEv
        _ -> barf ErrAppHeadIsNotFunctionTyped
      return ((AppExpr e0d e1d (Just pos)), appType)
 digestExpr c (RawLambdaExpr pos s t d) =
@@ -467,7 +472,7 @@ digestExpr c (RawFunctionTypeExpr pos a b) =
 digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
   do (ad, adType) <- digestExpr c a
      --assertTypesMatch c adType rootContext typeOfTypes
-     c' <- simplyAugmentContext c s ad Nothing []
+     c' <- simplyAugmentContext c s ad (Just pos) []
      sym <- certainly (lookupSymbol c' s)
      (bd, bdType) <- digestExpr c' b
      --assertTypesMatch c' bdType rootContext typeOfTypes
@@ -521,6 +526,14 @@ addEvaluationContextToExpr ec (LambdaExpr s t d pos) =
   let t' = addEvaluationContextToExpr ec t
       d' = addEvaluationContextToExpr ec d
     in LambdaExpr s t' d' pos
+addEvaluationContextToExpr ec (FunctionTypeExpr a b pos) =
+  let a' = addEvaluationContextToExpr ec a
+      b' = addEvaluationContextToExpr ec b
+    in FunctionTypeExpr a' b' pos
+addEvaluationContextToExpr ec (DependentFunctionTypeExpr s a b pos) =
+  let a' = addEvaluationContextToExpr ec a
+      b' = addEvaluationContextToExpr ec b
+    in DependentFunctionTypeExpr s a' b' pos
 
 addEvaluationContextToPattern :: Context -> Pattern -> Pattern
 addEvaluationContextToPattern ec (SymbolPat s) =
