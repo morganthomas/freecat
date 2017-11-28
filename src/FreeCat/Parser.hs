@@ -118,19 +118,21 @@ expr4 = lambdaExpr <|> expr3
 
 lambdaExpr :: FreeCatParser RawExpr
 lambdaExpr = do
+  pos <- getPosition
   exactToken BackslashToken
   s <- symbol
   exactToken ColonToken
   t <- expr2
   exactToken FatArrowToken
   e <- expr3
-  return (RawLambdaExpr s t e)
+  return (RawLambdaExpr pos s t e)
 
 expr3 :: FreeCatParser RawExpr
 expr3 = try dependentFunctionType <|> expr2
 
 dependentFunctionType :: FreeCatParser RawExpr
 dependentFunctionType = do
+  pos <- getPosition
   exactToken OpenParenToken
   s <- symbol
   exactToken ColonToken
@@ -138,30 +140,33 @@ dependentFunctionType = do
   exactToken CloseParenToken
   exactToken ThinArrowToken
   b <- expr3
-  return (RawDependentFunctionTypeExpr s a b)
+  return (RawDependentFunctionTypeExpr pos s a b)
 
 expr2 :: FreeCatParser RawExpr
 expr2 = do
+  pos <- getPosition
   e1 <- expr1
   e2opt <- optionMaybe (exactToken ThinArrowToken >> expr3)
   case e2opt of
     Nothing -> return e1
-    Just e2 -> return (RawFunctionTypeExpr e1 e2)
+    Just e2 -> return (RawFunctionTypeExpr pos e1 e2)
 
 expr1 :: FreeCatParser RawExpr
 expr1 = do
+  pos <- getPosition
   es <- many1 expr0
   case es of
     [e] -> return e
-    (e:es) -> return (foldl RawAppExpr e es)
+    (e:es) -> return (foldl (RawAppExpr pos) e es)
 
 expr0 :: FreeCatParser RawExpr
 expr0 = symbolExpr <|> parenthesizedExpr
 
 symbolExpr :: FreeCatParser RawExpr
 symbolExpr = do
+  pos <- getPosition
   s <- symbol
-  return (RawSymbolExpr s)
+  return (RawSymbolExpr pos s)
 
 parenthesizedExpr :: FreeCatParser RawExpr
 parenthesizedExpr = do
