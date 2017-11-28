@@ -341,11 +341,9 @@ _unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> FreeCa
 _unifyExprWithPattern (c, matches) e (SymbolPat t) =
   case Map.lookup (name t) matches of
     Just v ->
-      -- temporarily made pattern matching easier
-      return (Just (c, matches))
-      --if e == v -- TODO: weaken equivalence notion?
-        --then return (Just (c, matches))
-        --else return Nothing
+      if e == v -- TODO: weaken equivalence notion?
+        then return (Just (c, matches))
+        else return Nothing
     Nothing ->
       case lookupSymbol c (name t) of
        Just s ->
