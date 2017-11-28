@@ -228,21 +228,23 @@ certainly Nothing = barf ErrIThoughtThisWasImpossible
 evaluate :: Context -> Expr -> FreeCat Expr
 evaluate c (SymbolExpr s) = do
   case lookupSymbol c (name s) of
-    Nothing -> debug ("symbol is irreducible " ++ name s) >> return (SymbolExpr s)
+    Nothing -> --debug ("symbol is irreducible 1 " ++ name s) >> return (SymbolExpr s)
+      --barf (ErrSymbolNotDefined (name s))
+      error $ show (ErrSymbolNotDefined (name s))
     Just s' ->
       case definitions s' of
         (ConstantDef e pos : _) ->
           evaluate (evaluationOrNativeContext s) e
         (PatternDef [] (SymbolPat _) e pos : _) ->
           evaluate (evaluationOrNativeContext s) e
-        _ -> debug ("symbol is irreducible " ++ name s) >> return (SymbolExpr s)
+        _ -> debug ("symbol is irreducible 2 " ++ name s) >> return (SymbolExpr s)
 evaluate c (AppExpr e0 e1) =
   do e0e <- evaluate c e0
      e1e <- evaluate c e1
      case e0e of
       SymbolExpr s ->
         case lookupSymbol c (name s) of
-          Nothing -> debug ("symbol is irreducible " ++ name s) >> return (AppExpr e0e e1e)
+          Nothing -> debug ("symbol is irreducible 3 " ++ name s) >> return (AppExpr e0e e1e)
           Just s ->
             case definitions s of
               [] -> return (AppExpr e0e e1e)
@@ -256,7 +258,7 @@ evaluate c (AppExpr e0 e1) =
       AppExpr _ _ ->
         do s <- leadSymbol e0e
            case lookupSymbol c (name s) of
-             Nothing -> debug ("symbol is irreducible " ++ name s) >> return (AppExpr e0e e1e)
+             Nothing -> debug ("symbol is irreducible 4 " ++ name s) >> return (AppExpr e0e e1e)
              Just s ->
                 evaluatePatternMatch (evaluationOrNativeContext s) (definitions s) (AppExpr e0e e1e)
       LambdaExpr s t d ->
@@ -340,7 +342,7 @@ unifyExprWithPattern c e pat =
         debug (show (Map.keys (declarations c))) >>
         --(certainly (Map.lookup "f" (declarations c)) >>= debug . definitions) >>
         return (Just c)
-       Nothing -> debug ("\ncannot unify " ++ show e ++ "\nwith\n" ++ show pat ++ "\n") >> return Nothing
+       Nothing -> debug ("cannot unify " ++ show e ++ " with " ++ show pat) >> return Nothing
 
 _unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> FreeCat (Maybe (Context, Map String Expr))
 _unifyExprWithPattern (c, matches) e (SymbolPat t) =
@@ -437,7 +439,6 @@ digestExpr c (RawSymbolExpr s) =
 digestExpr c (RawAppExpr e0 e1) =
   do (e0d, e0dType) <- digestExpr c e0
      (e1d, e1dType) <- digestExpr c e1
-     e0dTypeNorm <- evaluate c e0dType
      appType <- case e0dType of
        FunctionTypeExpr a b ->
          do --assertTypesMatch c a c e1dType
