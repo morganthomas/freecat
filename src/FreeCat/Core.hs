@@ -369,7 +369,7 @@ _unifyExprWithPattern (c, matches) e (SymbolPat t) =
     Just v ->
       if e == v -- TODO: weaken equivalence notion?
         then return (Just (c, matches))
-        else return Nothing
+        else error "this is an interesting branch" >> return Nothing
     Nothing ->
       case lookupSymbol c (name t) of
        Just s ->
@@ -391,7 +391,9 @@ _unifyExprWithPattern (c0, matches0) (AppExpr e f _) (AppPat p q) =
            case unifyResult2 of
              Nothing -> return Nothing
              Just (c2, matches2) -> return unifyResult2
-_unifyExprWithPattern _ _ _ = return Nothing
+_unifyExprWithPattern (c, matches) e p = do
+  debug ("odd mismatch " ++ show (e, p, matches, c))
+  return Nothing
 
 --
 -- Constructing semantic objects from raw objects while checking coherence
