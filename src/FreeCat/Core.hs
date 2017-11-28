@@ -94,9 +94,7 @@ data Symbol = Symbol {
 }
 
 instance Eq Symbol where
-  -- temporarily loosen symbol equality relation
-  --s == t = name s == name t && nativeContext s == nativeContext t
-  s == t = name s == name t
+  s == t = name s == name t && nativeContext s == nativeContext t
 
 instance Show Symbol where
   show = name
