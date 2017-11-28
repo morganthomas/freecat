@@ -224,9 +224,8 @@ certainly Nothing = barf ErrIThoughtThisWasImpossible
 evaluate :: Context -> Expr -> FreeCat Expr
 evaluate c (SymbolExpr s pos) = do
   case lookupSymbol c (name s) of
-    Nothing -> --debug ("symbol is irreducible 1 " ++ name s) >> return (SymbolExpr s)
-      --barf (ErrSymbolNotDefined (name s))
-      error $ show (ErrSymbolNotDefined pos (name s))
+    Nothing ->
+      barf (ErrSymbolNotDefined pos (name s))
     Just s' ->
       case definitions s' of
         (ConstantDef e pos : _) ->
