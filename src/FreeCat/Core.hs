@@ -87,7 +87,7 @@ instance Show Context where
 
 showSymbolDefinition :: Symbol -> String
 showSymbolDefinition s = name s ++ " : " ++ show (definedType s) ++ "\n"
-  ++ (Prelude.foldl (++) "" $ Prelude.map show (definitions s))
+  ++ (Prelude.foldl (++) "" $ Prelude.map (\d -> show d ++ "\n") (definitions s))
 
 data Symbol = Symbol {
   name :: String,
@@ -110,10 +110,23 @@ instance Show Symbol where
 data Definition =
    ConstantDef Expr (Maybe SourcePos)
  | PatternDef [VariableDeclaration] Pattern Expr (Maybe SourcePos)
- deriving (Show)
+
+instance Show Definition where
+  show (ConstantDef e pos) = show e
+  show (PatternDef decls pat e pos) =
+    showVariableDeclarationList decls
+    ++ show pat ++ " = " ++ show e
 
 data VariableDeclaration = VarDecl Symbol Expr
- deriving (Show)
+
+instance Show VariableDeclaration where
+  show (VarDecl s e) = show s ++ " : " ++ show e
+
+showVariableDeclarationList :: [VariableDeclaration] -> String
+showVariableDeclarationList [] = ""
+showVariableDeclarationList (decl:decls) =
+  (Prelude.foldl joinByComma (show decl) (Prelude.map show decls)) ++ ". "
+  where joinByComma a b = a ++ ", " ++ b
 
 data Pattern =
    SymbolPat Symbol
