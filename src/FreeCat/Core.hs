@@ -23,7 +23,7 @@ data Error =
  | ErrExpectedLeadSymbolFoundLambda
  | ErrExpectedLeadSymbolFoundFunctionType
  | ErrExpectedPatternMatchDefGotConstantDef
- | ErrSymbolNotDefined (Maybe SourcePos) String
+ | ErrSymbolNotDefined Context (Maybe SourcePos) String
  | ErrAppHeadIsNotFunctionTyped
  | ErrTypeMismatch
  | ErrIThoughtThisWasImpossible
@@ -80,6 +80,14 @@ data Context = Context {
   declarations :: Map.Map String Symbol,
   importedSymbols :: Map.Map String Symbol
 }
+
+instance Show Context where
+  -- TODO: less consing
+  show c = Prelude.foldl (++) "" (Map.map showSymbolDefinition (declarations c))
+
+showSymbolDefinition :: Symbol -> String
+showSymbolDefinition s = name s ++ " : " ++ show (definedType s) ++ "\n"
+  ++ (Prelude.foldl (++) "" $ Prelude.map show (definitions s))
 
 data Symbol = Symbol {
   name :: String,
@@ -223,7 +231,7 @@ evaluate :: Context -> Expr -> FreeCat Expr
 evaluate c (SymbolExpr s pos) = do
   case lookupSymbol c (name s) of
     Nothing ->
-      barf (ErrSymbolNotDefined pos (name s))
+      barf (ErrSymbolNotDefined c pos (name s))
     Just s' ->
       case definitions s' of
         (ConstantDef e pos : _) ->
@@ -406,7 +414,7 @@ digestPattern :: Context -> RawPattern -> FreeCat Pattern
 digestPattern c (RawSymbolPat s) =
   case lookupSymbol c s of
     Just sym -> return (SymbolPat sym)
-    Nothing -> barf (ErrSymbolNotDefined Nothing s)
+    Nothing -> barf (ErrSymbolNotDefined c Nothing s)
 digestPattern c (RawAppPat p q) =
   do pd <- digestPattern c p
      pq <- digestPattern c q
@@ -419,14 +427,13 @@ digestVarDecl cPat (RawTypeAssertion s _) =
   do sym <- certainly (lookupSymbol cPat s)
      return (VarDecl sym (definedType sym))
 
-
 -- Assumes all symbols used in RawExpr are defined in Context.
 -- Returns a pair of the digested expr and its inferred type.
 digestExpr :: Context -> RawExpr -> FreeCat (Expr, Expr)
 digestExpr c (RawSymbolExpr pos s) =
   case lookupSymbol c s of
     Just sym -> return (SymbolExpr sym (Just pos), definedType sym)
-    Nothing -> barf (ErrSymbolNotDefined (Just pos) s)
+    Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
 digestExpr c (RawAppExpr pos e0 e1) =
   do (e0d, e0dType) <- digestExpr c e0
      (e1d, e1dType) <- digestExpr c e1
