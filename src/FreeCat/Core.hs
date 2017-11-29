@@ -244,31 +244,10 @@ certainly Nothing = barf ErrIThoughtThisWasImpossible
 
 evaluate :: Context -> Expr -> FreeCat Expr
 evaluate = _evaluate (certainly . evaluationContext)
--- error is happening on line above.
--- debug output when substituting (return . evaluationOrNativeContext)
---
--- evaluate c Bar where c = List : (Type -> Type)
--- a : Type
--- b : Type
--- cons : ((a : Type) -> (a -> ((List a) -> (List a))))
--- empty : ((a : Type) -> (List a))
--- map : ((a : Type) -> ((b : Type) -> ((a -> b) -> ((List a) -> (List b)))))
--- a : Type, b : Type, f : (a -> b). ((((map a) b) f) (empty a)) = (empty b)
---
--- ~~
---
--- freecat: ErrSymbolNotDefined List : (Type -> Type)
--- a : Type
--- b : Type
--- cons : ((a : Type) -> (a -> ((List a) -> (List a))))
--- empty : ((a : Type) -> (List a))
--- map : ((a : Type) -> ((b : Type) -> ((a -> b) -> ((List a) -> (List b)))))
--- a : Type, b : Type, f : (a -> b). ((((map a) b) f) (empty a)) = (empty b)
---  (Just (line 29, column 24)) "Bar"
-
 
 -- the form of evaluate used in digestion
-preEvaluate = _evaluate (return . nativeContext)
+--preEvaluate = _evaluate (return . nativeContext)
+preEvaluate = evaluate
 
 _evaluate :: (Symbol -> FreeCat Context) -> Context -> Expr -> FreeCat Expr
 _evaluate getContext c (SymbolExpr s pos) = do
@@ -452,6 +431,7 @@ addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef), pos
    Nothing -> barf ErrEquationWithoutMatchingTypeDeclaration
    Just sym ->
      do cPat <- foldM digestTypeAssertion c (Prelude.map (,Nothing) rawdecls)
+        debug ("pattern context " ++ show cPat)
         pat <- digestPattern cPat rawpat
         (def, defType) <- digestExpr cPat rawdef
         --assertTypesMatch cPat defType (nativeContext sym) (definedType sym)
