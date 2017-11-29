@@ -17,5 +17,5 @@ main = do
         )
       case result of
         Left err -> error (show err)
-        Right (result, st) -> putStrLn (show result)
+        Right (result, st) -> putStrLn ("final result: " ++ show result)
     _ -> error "wrong number of command line args, expected 2"

@@ -114,9 +114,9 @@ data Definition =
  | PatternDef [VariableDeclaration] Pattern Expr (Maybe SourcePos)
 
 instance Show Definition where
-  show (ConstantDef e pos) = show e
+  show (ConstantDef e pos) = "    " ++ show e
   show (PatternDef decls pat e pos) =
-    showVariableDeclarationList decls
+    "    " ++ showVariableDeclarationList decls
     ++ show pat ++ " = " ++ show e
 
 data VariableDeclaration = VarDecl Symbol Expr
@@ -298,16 +298,23 @@ _evaluate getContext c e@(AppExpr e0 e1 pos) =
       DependentFunctionTypeExpr _ _ _ _ -> barf ErrFunctionTypeOnAppLHS
 _evaluate getContext c e@(LambdaExpr s t d pos) =
   do debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
+     te <- _evaluate getContext c t
      c' <- simplyAugmentContext c (name s) t (declarationSourcePos s) []
      s' <- certainly (lookupSymbol c' (name s))
-     return (LambdaExpr s' t d pos)
+     de <- _evaluate getContext c' d
+     return (LambdaExpr s' te de pos)
 _evaluate getContext c e@(FunctionTypeExpr a b pos) =
   do debug ("evaluate c " ++ show e ++ " where c = " ++ show c)
      ae <- _evaluate getContext c a
      be <- _evaluate getContext c b
      return (FunctionTypeExpr ae be pos)
-_evaluate getContext c e@(DependentFunctionTypeExpr s a b pos) = debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
-  >> return e
+_evaluate getContext c e@(DependentFunctionTypeExpr s a b pos) = do
+  debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
+  ae <- _evaluate getContext c a
+  c' <- simplyAugmentContext c (name s) ae (declarationSourcePos s) []
+  s' <- certainly (lookupSymbol c' (name s))
+  be <- _evaluate getContext c' b
+  return (DependentFunctionTypeExpr s' ae be pos)
 
 -- Creates a new context which has the given context as parent and has a symbol
 -- with the given name, type, and definitions.
@@ -418,6 +425,7 @@ _unifyExprWithPattern (c, matches) e p = do
 digestContext :: RawContext -> FreeCat Context
 digestContext decls =
   do c <- foldM addToContext rootContext decls
+     debug "complete digestion"
      completeContext c
 
 addToContext :: Context -> Positioned RawDeclaration -> FreeCat Context
