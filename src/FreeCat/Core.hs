@@ -358,7 +358,7 @@ _simplyAugmentContext parentContext vName vType pos vDefs contextId =
           declarationSourcePos = pos,
           definitions = vDefs,
           nativeContext = newContext,
-          evaluationContext = Nothing
+          evaluationContext = Just newContext
         }
     in newContext
 
