@@ -500,11 +500,11 @@ digestExpr c (RawAppExpr pos e0 e1) =
        FunctionTypeExpr a b pos ->
          do --assertTypesMatch c a c e1dType
             return b
-       DependentFunctionTypeExpr s a b pos -> return b -- temporarily simplify
-         --do assertTypesMatch c a c e1dType
-            --c' <- simplyAugmentContext c (name s) a Nothing [ConstantDef e1d Nothing]
-            --bEv <- preEvaluate c' b
-            --return bEv
+       DependentFunctionTypeExpr s a b pos ->
+         do --assertTypesMatch c a c e1dType
+            c' <- simplyAugmentContext c (name s) a Nothing [ConstantDef e1d Nothing]
+            bEv <- preEvaluate c' b
+            return bEv
        _ -> barf ErrAppHeadIsNotFunctionTyped
      return ((AppExpr e0d e1d (Just pos)), appType)
 digestExpr c (RawLambdaExpr pos s t d) =
