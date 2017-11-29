@@ -421,7 +421,8 @@ digestContext decls =
      completeContext c
 
 addToContext :: Context -> Positioned RawDeclaration -> FreeCat Context
-addToContext c (RawTypeDeclaration assertion, pos) =
+addToContext c (RawTypeDeclaration assertion, pos) = do
+  debug ("digest type assertion " ++ show pos)
   digestTypeAssertion c (assertion, Just pos)
 addToContext c (RawImportDeclaration _, pos) = error "import not implemented"
 addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef), pos) =
@@ -429,6 +430,7 @@ addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef), pos
    Nothing -> barf ErrEquationWithoutMatchingTypeDeclaration
    Just sym ->
      do cPat <- foldM digestTypeAssertion c (Prelude.map (,Nothing) rawdecls)
+        debug ("digest equation " ++ show pos)
         debug ("pattern context " ++ show cPat)
         pat <- digestPattern cPat rawpat
         (def, defType) <- digestExpr cPat rawdef
