@@ -243,21 +243,29 @@ certainly Nothing = barf ErrIThoughtThisWasImpossible
 --
 
 evaluate :: Context -> Expr -> FreeCat Expr
-evaluate c (SymbolExpr s pos) = do
+evaluate = _evaluate (certainly . evaluationContext)
+
+-- the form of evaluate used in digestion
+preEvaluate = _evaluate (return . nativeContext)
+
+_evaluate :: (Symbol -> FreeCat Context) -> Context -> Expr -> FreeCat Expr
+_evaluate getContext c (SymbolExpr s pos) = do
   debug ("evaluate c " ++ (name s) ++ " where c = " ++ show c ++ "\n~~\n")
   case lookupSymbol c (name s) of
     Nothing ->
       barf (ErrSymbolNotDefined c pos (name s))
     Just s' ->
       case definitions s' of
-        (ConstantDef e pos : _) ->
-          evaluate (evaluationOrNativeContext s) e
-        (PatternDef [] (SymbolPat _) e pos : _) ->
-          evaluate (evaluationOrNativeContext s) e
+        (ConstantDef e pos : _) -> do
+          c' <- getContext s
+          _evaluate getContext c' e
+        (PatternDef [] (SymbolPat _) e pos : _) -> do
+          c' <- getContext s
+          _evaluate getContext c' e
         _ -> debug ("symbol is irreducible 2 " ++ name s) >> return (SymbolExpr s pos)
-evaluate c e@(AppExpr e0 e1 pos) =
-  do e0e <- evaluate c e0
-     e1e <- evaluate c e1
+_evaluate getContext c e@(AppExpr e0 e1 pos) =
+  do e0e <- _evaluate getContext c e0
+     e1e <- _evaluate getContext c e1
      debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
      case e0e of
       SymbolExpr s pos ->
@@ -266,36 +274,40 @@ evaluate c e@(AppExpr e0 e1 pos) =
           Just s ->
             case definitions s of
               [] -> return (AppExpr e0e e1e pos)
-              (ConstantDef d pos : _) ->
-                evaluate (evaluationOrNativeContext s) (AppExpr d e1e pos)
-              defs ->
+              (ConstantDef d pos : _) -> do
+                c' <- getContext s
+                _evaluate getContext c' (AppExpr d e1e pos)
+              defs -> do
                 -- TODO: if pattern defs for a symbol can originate from
                 -- different contexts, then those defs can have different
                 -- evaluation contexts
-                evaluatePatternMatch (evaluationOrNativeContext s) defs (AppExpr e0e e1e pos)
+                c' <- getContext s
+                _evaluatePatternMatch getContext c' defs (AppExpr e0e e1e pos)
       AppExpr _ _ pos ->
         do s <- leadSymbol e0e
            case lookupSymbol c (name s) of
              Nothing -> debug ("symbol is irreducible 4 " ++ name s) >> return (AppExpr e0e e1e pos)
-             Just s ->
-                evaluatePatternMatch (evaluationOrNativeContext s) (definitions s) (AppExpr e0e e1e pos)
+             Just s -> do
+               c' <- getContext s
+               _evaluatePatternMatch getContext c' (definitions s) (AppExpr e0e e1e pos)
       LambdaExpr s t d pos ->
-        do ec' <- simplyAugmentContext (evaluationOrNativeContext s)
+        do c' <- getContext s
+           ec' <- simplyAugmentContext c'
                      (name s) (definedType s) Nothing [ConstantDef e1e Nothing]
-           evaluate ec' d
+           _evaluate getContext ec' d
       FunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ _ -> barf ErrFunctionTypeOnAppLHS
-evaluate c e@(LambdaExpr s t d pos) =
+_evaluate getContext c e@(LambdaExpr s t d pos) =
   do debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
      c' <- simplyAugmentContext c (name s) t (declarationSourcePos s) []
      s' <- certainly (lookupSymbol c' (name s))
      return (LambdaExpr s' t d pos)
-evaluate c e@(FunctionTypeExpr a b pos) =
+_evaluate getContext c e@(FunctionTypeExpr a b pos) =
   do debug ("evaluate c " ++ show e ++ " where c = " ++ show c)
-     ae <- evaluate c a
-     be <- evaluate c b
+     ae <- _evaluate getContext c a
+     be <- _evaluate getContext c b
      return (FunctionTypeExpr ae be pos)
-evaluate c e@(DependentFunctionTypeExpr s a b pos) = debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
+_evaluate getContext c e@(DependentFunctionTypeExpr s a b pos) = debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
   >> return e
 
 -- Creates a new context which has the given context as parent and has a symbol
@@ -340,15 +352,16 @@ leadSymbol (DependentFunctionTypeExpr _ _ _ _) = barf ErrExpectedLeadSymbolFound
 -- Returns the result of evaluating the expr against the first matching definition
 -- if one matches, and throws an error if no patterns match. Assumes the
 -- subexpressions of the given expr are normalized.
-evaluatePatternMatch :: Context -> [Definition] -> Expr -> FreeCat Expr
-evaluatePatternMatch c [] e = debug ("no patterns matching " ++ show e) >> return e
-evaluatePatternMatch c ((ConstantDef _ _):_) e =
+_evaluatePatternMatch :: (Symbol -> FreeCat Context) ->
+  Context -> [Definition] -> Expr -> FreeCat Expr
+_evaluatePatternMatch getContext c [] e = debug ("no patterns matching " ++ show e) >> return e
+_evaluatePatternMatch getContext c ((ConstantDef _ _):_) e =
   barf ErrExpectedPatternMatchDefGotConstantDef
-evaluatePatternMatch c0 ((PatternDef _ p d pos):defs) e =
+_evaluatePatternMatch getContext c0 ((PatternDef _ p d pos):defs) e =
   do unifyResult <- unifyExprWithPattern c0 e p
      case unifyResult of
-      Just c1 -> evaluate c1 d
-      Nothing -> evaluatePatternMatch c0 defs e
+      Just c1 -> _evaluate getContext c1 d
+      Nothing -> _evaluatePatternMatch getContext c0 defs e
 
 -- Takes an expr and a pattern and returns an augmented context in which the
 -- pattern variables are defined according to the unification of expr and pattern.
@@ -468,7 +481,7 @@ digestExpr c (RawAppExpr pos e0 e1) =
        DependentFunctionTypeExpr s a b pos -> return b -- temporarily simplify
          --do assertTypesMatch c a c e1dType
             --c' <- simplyAugmentContext c (name s) a Nothing [ConstantDef e1d Nothing]
-            --bEv <- evaluate c' b
+            --bEv <- preEvaluate c' b
             --return bEv
        _ -> barf ErrAppHeadIsNotFunctionTyped
      return ((AppExpr e0d e1d (Just pos)), appType)
@@ -501,8 +514,8 @@ digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
 -- simply means their normal forms are syntactically equal.
 assertTypesMatch :: Context -> Expr -> Context -> Expr -> FreeCat ()
 assertTypesMatch ac a bc b =
-  do aEv <- evaluate ac a
-     bEv <- evaluate bc b
+  do aEv <- preEvaluate ac a
+     bEv <- preEvaluate bc b
      -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
      if aEv == bEv then return () else barf ErrTypeMismatch
 
