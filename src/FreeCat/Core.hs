@@ -257,9 +257,7 @@ _evaluate getContext c (SymbolExpr s pos) = do
       barf (ErrSymbolNotDefined c pos (name s))
     Just s' ->
       case definitions s' of
-        (ConstantDef e pos : _) -> do
-          c' <- getContext s
-          _evaluate getContext c' e
+        (ConstantDef e pos : _) -> return e
         (PatternDef [] (SymbolPat _) e pos : _) -> do
           c' <- getContext s
           _evaluate getContext c' e
@@ -483,6 +481,7 @@ digestExpr c (RawAppExpr pos e0 e1) =
        DependentFunctionTypeExpr s a b pos ->
          do --assertTypesMatch c a c e1dType
             c' <- simplyAugmentContext c (name s) a Nothing [ConstantDef e1d Nothing]
+            debug ("preEvaluate " ++ show b)
             bEv <- preEvaluate c' b
             return bEv
        _ -> barf ErrAppHeadIsNotFunctionTyped
