@@ -1,3 +1,3 @@
-  cabal install
-  cabal build
-  ./test.sh
+    cabal install
+    cabal build
+    ./test.sh
