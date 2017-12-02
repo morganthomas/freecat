@@ -168,12 +168,11 @@ data Expr =
 instance Eq Expr where
   (SymbolExpr s _) == (SymbolExpr t _) = s == t
   (AppExpr a0 b0 _) == (AppExpr a1 b1 _) = a0 == a1 && b0 == b1
-  -- TODO: alpha convertible lambdas should be equal
-  (LambdaExpr s0 a0 b0 _) == (LambdaExpr s1 a1 b1 _) = s0 == s1 && a0 == a1 && b0 == b1
+  (LambdaExpr s0 a0 b0 _) == (LambdaExpr s1 a1 b1 _) =
+    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
   (FunctionTypeExpr a0 b0 _) == (FunctionTypeExpr a1 b1 _) = a0 == a1 && b0 == b1
-  -- TODO: alpha convertible pis should be equal
   (DependentFunctionTypeExpr s0 a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
-    s0 == s1 && a0 == a1 && b0 == b1
+    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
 
 patternToExpr :: Pattern -> Expr
 patternToExpr (SymbolPat s) = SymbolExpr s Nothing
@@ -659,3 +658,34 @@ addEvaluationContextToDefinition ec (PatternDef decls pat e pos) =
       pat' = addEvaluationContextToPattern ec pat
       e' = addEvaluationContextToExpr ec e
     in (PatternDef decls' pat' e' pos)
+
+--
+-- Substitution and alpha conversion
+--
+
+-- Takes a lambda or dependent function type expr and replaces its outermost
+-- variable with another symbol
+alphaConvert :: Symbol -> Expr -> Expr
+alphaConvert s1 (LambdaExpr s0 a b _) =
+  LambdaExpr s1 a (substitute s0 (SymbolExpr s1 Nothing) b) Nothing
+alphaConvert s1 (DependentFunctionTypeExpr s0 a b _) =
+  DependentFunctionTypeExpr s1 a (substitute s0 (SymbolExpr s1 Nothing) b) Nothing
+
+-- Replaces all free instances of a symbol with an expr in an expr
+substitute :: Symbol -> Expr -> Expr -> Expr
+substitute s v e@(SymbolExpr s' pos) =
+  if s' == s
+    then v
+    else e
+substitute s v (AppExpr a b pos) =
+  AppExpr (substitute s v a) (substitute s v b) Nothing
+substitute s v e@(LambdaExpr s' t d pos) =
+  if name s == name s'
+    then e
+    else LambdaExpr s' (substitute s v t) (substitute s v d) Nothing
+substitute s v (FunctionTypeExpr a b pos) =
+  FunctionTypeExpr (substitute s v a) (substitute s v b) pos
+substitue s v e@(DependentFunctionTypeExpr s' a b pos) =
+  if name s == name s'
+    then e
+    else DependentFunctionTypeExpr s' (substitute s v a) (substitute s v b) Nothing
