@@ -26,7 +26,7 @@ data Error =
  | ErrExpectedPatternMatchDefGotConstantDef
  | ErrSymbolNotDefined Context (Maybe SourcePos) String
  | ErrAppHeadIsNotFunctionTyped
- | ErrTypeMismatch Context Expr Context Expr
+ | ErrTypeMismatch Context Expr Expr Context Expr Expr
  | ErrIThoughtThisWasImpossible
  | ErrExtraTypeDeclaration
  | ErrEquationWithoutMatchingTypeDeclaration
@@ -40,8 +40,10 @@ instance Show Error where
     ++ "\nSource pos: " ++ show pos
     ++ "\nContext:\n" ++ show c
   show ErrAppHeadIsNotFunctionTyped = "Type error: head of function application doesn't have a function type."
-  show (ErrTypeMismatch c0 t0 c1 t1) =
-    "Type mismatch: " ++ show t0 ++ " does not match " ++ show t1
+  show (ErrTypeMismatch c0 e0 t0 c1 e1 t1) =
+    "Failed to match types: "
+    ++ "\n  " ++ show e0 ++ " : " ++ show t0
+    ++ "\n  " ++ show e1 ++ " : " ++ show t1
   show ErrIThoughtThisWasImpossible = "Something impossible has occurred. There is a bug in FreeCat.Core."
   show ErrExtraTypeDeclaration = "Illegal: declared a type for a symbol twice in one context."
   show ErrEquationWithoutMatchingTypeDeclaration = "Illegal: declared a pattern matching equation without declaring the lead symbol's type first."
@@ -158,6 +160,10 @@ data Expr =
  | FunctionTypeExpr Expr Expr (Maybe SourcePos)
  | DependentFunctionTypeExpr Symbol Expr Expr (Maybe SourcePos)
  deriving (Eq)
+
+patternToExpr :: Pattern -> Expr
+patternToExpr (SymbolPat s) = SymbolExpr s Nothing
+patternToExpr (AppPat a b) = AppExpr (patternToExpr a) (patternToExpr b) Nothing
 
 instance Show Expr where
   show (SymbolExpr s pos) = name s
@@ -458,9 +464,9 @@ addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef), pos
      do cPat <- foldM digestTypeAssertion c (Prelude.map (,Nothing) rawdecls)
         debug ("digest equation " ++ show pos)
         debug ("pattern context " ++ show cPat)
-        pat <- digestPattern cPat rawpat
+        (pat, patType) <- digestPattern cPat rawpat
         (def, defType) <- digestExpr cPat rawdef
-        assertTypesMatch cPat defType (nativeContext sym) (definedType sym)
+        assertTypesMatch cPat def defType (nativeContext sym) (patternToExpr pat) patType
         decls <- mapM (digestVarDecl cPat) rawdecls
         augmentContext c (name sym) (Just $ nativeContext sym) (definedType sym) (declarationSourcePos sym)
           (definitions sym ++ [ (PatternDef decls pat def (Just pos)) ]) -- TODO: less consing
@@ -475,15 +481,25 @@ digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
          c' <- augmentContext c s Nothing t pos []
          return c'
 
-digestPattern :: Context -> RawPattern -> FreeCat Pattern
+digestPattern :: Context -> RawPattern -> FreeCat (Pattern, Expr)
 digestPattern c (RawSymbolPat s) =
   case lookupSymbol c s of
-    Just sym -> return (SymbolPat sym)
+    Just sym -> return (SymbolPat sym, definedType sym)
     Nothing -> barf (ErrSymbolNotDefined c Nothing s)
 digestPattern c (RawAppPat p q) =
-  do pd <- digestPattern c p
-     pq <- digestPattern c q
-     return (AppPat pd pq)
+  do (pd, pdType) <- digestPattern c p
+     (pq, pqType) <- digestPattern c q
+     appType <- case pdType of
+       FunctionTypeExpr a b pos ->
+        do --assertTypesMatch
+           return b
+       DependentFunctionTypeExpr s a b pos ->
+        do --assertTypesMatch
+           c' <- augmentContext c (name s) Nothing a Nothing [ConstantDef pqType Nothing]
+           bEv <- preEvaluate c' b
+           return bEv
+       _ -> barf ErrAppHeadIsNotFunctionTyped
+     return (AppPat pd pq, appType)
 
 -- cPat is assumed to contain a declaration generated from this type
 -- assertion via digestTypeAssertion
@@ -541,14 +557,14 @@ digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
 
 -- Throws an error unless the two exprs match as types. For now this
 -- simply means their normal forms are syntactically equal.
-assertTypesMatch :: Context -> Expr -> Context -> Expr -> FreeCat ()
-assertTypesMatch ac a bc b =
-  do aEv <- preEvaluate ac a
-     bEv <- preEvaluate bc b
+assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
+assertTypesMatch c0 e0 t0 c1 e1 t1 =
+  do aEv <- preEvaluate c0 t0
+     bEv <- preEvaluate c1 t1
      -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
      if aEv == bEv
        then return ()
-       else barf (ErrTypeMismatch ac a bc b)
+       else barf (ErrTypeMismatch c0 e0 t1 c1 e1 t1)
 
 completeContext :: Context -> FreeCat Context
 completeContext c =
