@@ -282,10 +282,6 @@ certainly Nothing = barf ErrIThoughtThisWasImpossible
 evaluate :: Context -> Expr -> FreeCat Expr
 evaluate = _evaluate (certainly . evaluationContext)
 
--- the form of evaluate used in digestion
---preEvaluate = _evaluate (return . nativeContext)
-preEvaluate = evaluate
-
 _evaluate :: (Symbol -> FreeCat Context) -> Context -> Expr -> FreeCat Expr
 _evaluate getContext c (SymbolExpr s pos) = do
   debug ("evaluate c " ++ (name s) ++ " where c = " ++ show c ++ "\n~~\n")
@@ -514,7 +510,7 @@ digestPattern c (RawAppPat p q) =
        DependentFunctionTypeExpr s a b pos ->
         do assertTypesMatch c (patternToExpr pq) pqType c (SymbolExpr s pos) a
            c' <- augmentContext c (name s) Nothing a Nothing [ConstantDef (patternToExpr pq) Nothing]
-           bEv <- preEvaluate c' b
+           bEv <- evaluate c' b
            return bEv
        _ -> barf ErrAppHeadIsNotFunctionTyped
      return (AppPat pd pq, appType)
@@ -543,8 +539,7 @@ digestExpr c (RawAppExpr pos e0 e1) =
        DependentFunctionTypeExpr s a b pos ->
          do assertTypesMatch c e1d e1dType c (SymbolExpr s pos) a
             c' <- augmentContext c (name s) Nothing a Nothing [ConstantDef e1d Nothing]
-            debug ("preEvaluate " ++ show b)
-            bEv <- preEvaluate c' b
+            bEv <- evaluate c' b
             return bEv
        _ -> barf ErrAppHeadIsNotFunctionTyped
      return ((AppExpr e0d e1d (Just pos)), appType)
@@ -577,8 +572,8 @@ digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
 -- simply means their normal forms are syntactically equal.
 assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
 assertTypesMatch c0 e0 t0 c1 e1 t1 =
-  do t0ev <- preEvaluate c0 t0
-     t1ev <- preEvaluate c1 t1
+  do t0ev <- evaluate c0 t0
+     t1ev <- evaluate c1 t1
      -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
      if t0ev == t1ev
        then return ()
