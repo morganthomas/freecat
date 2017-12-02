@@ -173,6 +173,7 @@ instance Eq Expr where
   (FunctionTypeExpr a0 b0 _) == (FunctionTypeExpr a1 b1 _) = a0 == a1 && b0 == b1
   (DependentFunctionTypeExpr s0 a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
     a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
+  _ == _ = False
 
 patternToExpr :: Pattern -> Expr
 patternToExpr (SymbolPat s) = SymbolExpr s Nothing
@@ -507,7 +508,7 @@ digestPattern c (RawAppPat p q) =
         do assertTypesMatch c (patternToExpr pq) pqType c (patternToExpr pq) a
            return b
        DependentFunctionTypeExpr s a b pos ->
-        do --assertTypesMatch
+        do assertTypesMatch c (patternToExpr pq) pqType c (SymbolExpr s pos) a
            c' <- augmentContext c (name s) Nothing a Nothing [ConstantDef (patternToExpr pq) Nothing]
            bEv <- preEvaluate c' b
            return bEv
