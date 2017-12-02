@@ -275,12 +275,12 @@ certainly :: Maybe a -> FreeCat a
 certainly (Just x) = return x
 certainly Nothing = barf ErrIThoughtThisWasImpossible
 
+getEvaluationContext :: Symbol -> FreeCat Context
+getEvaluationContext = certainly . evaluationContext
+
 --
 -- Evaluation
 --
-
-getEvaluationContext :: Symbol -> FreeCat Context
-getEvaluationContext = certainly . evaluationContext
 
 evaluate :: Context -> Expr -> FreeCat Expr
 evaluate c (SymbolExpr s pos) = do
