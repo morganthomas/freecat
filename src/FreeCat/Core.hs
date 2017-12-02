@@ -679,13 +679,13 @@ substitute s v e@(SymbolExpr s' pos) =
 substitute s v (AppExpr a b pos) =
   AppExpr (substitute s v a) (substitute s v b) Nothing
 substitute s v e@(LambdaExpr s' t d pos) =
-  if name s == name s'
+  if s == s'
     then e
     else LambdaExpr s' (substitute s v t) (substitute s v d) Nothing
 substitute s v (FunctionTypeExpr a b pos) =
   FunctionTypeExpr (substitute s v a) (substitute s v b) pos
 substitute s v e@(DependentFunctionTypeExpr s' a b pos) =
-  if name s == name s'
+  if s == s'
     then e
     else DependentFunctionTypeExpr s' (substitute s v a) (substitute s v b) Nothing
 
