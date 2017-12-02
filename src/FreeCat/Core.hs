@@ -566,7 +566,7 @@ digestExpr c (RawFunctionTypeExpr pos a b) =
      return (FunctionTypeExpr ad bd (Just pos), typeOfTypes)
 digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
   do (ad, adType) <- digestExpr c a
-     --assertTypesMatch c adType rootContext typeOfTypes
+     assertTypesMatch c ad adType rootContext ad typeOfTypes
      c' <- augmentContext c s Nothing ad (Just pos) []
      sym <- certainly (lookupSymbol c' s)
      (bd, bdType) <- digestExpr c' b
