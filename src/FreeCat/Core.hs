@@ -570,7 +570,7 @@ digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
      c' <- augmentContext c s Nothing ad (Just pos) []
      sym <- certainly (lookupSymbol c' s)
      (bd, bdType) <- digestExpr c' b
-     --assertTypesMatch c' bdType rootContext typeOfTypes
+     assertTypesMatch c' bd bdType rootContext bd typeOfTypes
      return (DependentFunctionTypeExpr sym ad bd (Just pos), typeOfTypes)
 
 -- Throws an error unless the two exprs match as types. For now this
