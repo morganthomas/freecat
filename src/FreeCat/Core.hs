@@ -495,7 +495,7 @@ digestPattern c (RawAppPat p q) =
            return b
        DependentFunctionTypeExpr s a b pos ->
         do --assertTypesMatch
-           c' <- augmentContext c (name s) Nothing a Nothing [ConstantDef pqType Nothing]
+           c' <- augmentContext c (name s) Nothing a Nothing [ConstantDef (patternToExpr pq) Nothing]
            bEv <- preEvaluate c' b
            return bEv
        _ -> barf ErrAppHeadIsNotFunctionTyped
