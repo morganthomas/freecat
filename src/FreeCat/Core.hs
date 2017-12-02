@@ -490,7 +490,7 @@ digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
     Just _ -> barf ErrExtraTypeDeclaration
     Nothing ->
       do (t, tt) <- digestExpr c rawt
-         --assertTypesMatch c tt rootContext typeOfTypes
+         assertTypesMatch c t tt rootContext t typeOfTypes
          c' <- augmentContext c s Nothing t pos []
          return c'
 
