@@ -173,6 +173,10 @@ instance Eq Expr where
   (FunctionTypeExpr a0 b0 _) == (FunctionTypeExpr a1 b1 _) = a0 == a1 && b0 == b1
   (DependentFunctionTypeExpr s0 a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
     a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
+  (FunctionTypeExpr a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
+    not (s1 `occursFreeIn` b1) && a0 == a1 && b0 == b1
+  (DependentFunctionTypeExpr s0 a0 b0 _) == (FunctionTypeExpr a1 b1 _) =
+    not (s0 `occursFreeIn` b0) && a0 == a1 && b0 == b1
   _ == _ = False
 
 patternToExpr :: Pattern -> Expr
@@ -534,7 +538,7 @@ digestExpr c (RawAppExpr pos e0 e1) =
      (e1d, e1dType) <- digestExpr c e1
      appType <- case e0dType of
        FunctionTypeExpr a b pos ->
-         do --assertTypesMatch c a c e1dType
+         do assertTypesMatch c e1d e1dType c e1d a
             return b
        DependentFunctionTypeExpr s a b pos ->
          do --assertTypesMatch c a c e1dType
@@ -552,7 +556,7 @@ digestExpr c (RawLambdaExpr pos s t d) =
      sym <- certainly (lookupSymbol c' s)
      return (
        (LambdaExpr sym td dd (Just pos)),
-       (DependentFunctionTypeExpr sym tdType ddType (Just pos))
+       (DependentFunctionTypeExpr sym td ddType (Just pos))
       )
 digestExpr c (RawFunctionTypeExpr pos a b) =
   do (ad, adType) <- digestExpr c a
@@ -661,7 +665,7 @@ addEvaluationContextToDefinition ec (PatternDef decls pat e pos) =
     in (PatternDef decls' pat' e' pos)
 
 --
--- Substitution and alpha conversion
+-- Dealing with variables
 --
 
 -- Takes a lambda or dependent function type expr and replaces its outermost
@@ -690,3 +694,15 @@ substitue s v e@(DependentFunctionTypeExpr s' a b pos) =
   if name s == name s'
     then e
     else DependentFunctionTypeExpr s' (substitute s v a) (substitute s v b) Nothing
+
+-- returns true if the given symbol occurs free in the given expr
+occursFreeIn :: Symbol -> Expr -> Bool
+s `occursFreeIn` (SymbolExpr s' _) = s == s'
+s `occursFreeIn` (AppExpr a b _) = s `occursFreeIn` a || s `occursFreeIn` b
+s `occursFreeIn` (LambdaExpr s' t e _) =
+  s `occursFreeIn` t
+  || (s /= s' && occursFreeIn s e)
+s `occursFreeIn` (FunctionTypeExpr a b _) = s `occursFreeIn` a || s `occursFreeIn` b
+s `occursFreeIn` (DependentFunctionTypeExpr s' a b _) =
+  s `occursFreeIn` a
+  || (s /= s' && s `occursFreeIn` b)
