@@ -119,7 +119,12 @@ data Symbol = Symbol {
 }
 
 instance Eq Symbol where
-  s == t = name s == name t && nativeContext s == nativeContext t
+  s == t =
+    -- for now, freak out if there are symbols with the same name and diff. contexts.
+    -- this case is actually legal but for now it won't occur on purpose.
+    if name s == name t && nativeContext s /= nativeContext t
+      then error ("same symbol different context: " ++ name s ++ "\n" ++ show (nativeContext s) ++ "\n--\n" ++ show (nativeContext t))
+      else name s == name t && nativeContext s == nativeContext t
 
 instance Show Symbol where
   show = name
