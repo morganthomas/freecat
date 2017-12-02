@@ -504,7 +504,7 @@ digestPattern c (RawAppPat p q) =
      (pq, pqType) <- digestPattern c q
      appType <- case pdType of
        FunctionTypeExpr a b pos ->
-        do --assertTypesMatch
+        do assertTypesMatch c (patternToExpr pq) pqType c (patternToExpr pq) a
            return b
        DependentFunctionTypeExpr s a b pos ->
         do --assertTypesMatch
