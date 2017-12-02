@@ -466,7 +466,7 @@ addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef), pos
         debug ("pattern context " ++ show cPat)
         (pat, patType) <- digestPattern cPat rawpat
         (def, defType) <- digestExpr cPat rawdef
-        assertTypesMatch cPat def defType (nativeContext sym) (patternToExpr pat) patType
+        assertTypesMatch cPat def defType cPat (patternToExpr pat) patType
         decls <- mapM (digestVarDecl cPat) rawdecls
         augmentContext c (name sym) (Just $ nativeContext sym) (definedType sym) (declarationSourcePos sym)
           (definitions sym ++ [ (PatternDef decls pat def (Just pos)) ]) -- TODO: less consing
