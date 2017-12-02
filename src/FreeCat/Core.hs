@@ -26,11 +26,25 @@ data Error =
  | ErrExpectedPatternMatchDefGotConstantDef
  | ErrSymbolNotDefined Context (Maybe SourcePos) String
  | ErrAppHeadIsNotFunctionTyped
- | ErrTypeMismatch
+ | ErrTypeMismatch Context Expr Context Expr
  | ErrIThoughtThisWasImpossible
  | ErrExtraTypeDeclaration
  | ErrEquationWithoutMatchingTypeDeclaration
- deriving (Show)
+
+instance Show Error where
+  show ErrFunctionTypeOnAppLHS = "Nonsense: function type on left hand side of function application expression."
+  show ErrExpectedLeadSymbolFoundLambda = "Expected lead symbol, found lambda expression. This condition should never occur. There is a bug in FreeCat.Core."
+  show ErrExpectedLeadSymbolFoundFunctionType = "Expected lead symbol, found function type. This condition should never occur. There is a bug in FreeCat.Core."
+  show ErrExpectedPatternMatchDefGotConstantDef = "Illegal: found a constant definition for a symbol with pattern match definitions. A symbol can have exactly one constant definition, or any number of pattern match definitions, but not both."
+  show (ErrSymbolNotDefined c pos s) = "Symbol not defined: " ++ s
+    ++ "\nSource pos: " ++ show pos
+    ++ "\nContext:\n" ++ show c
+  show ErrAppHeadIsNotFunctionTyped = "Type error: head of function application doesn't have a function type."
+  show (ErrTypeMismatch c0 t0 c1 t1) =
+    "Type mismatch: " ++ show t0 ++ " does not match " ++ show t1
+  show ErrIThoughtThisWasImpossible = "Something impossible has occurred. There is a bug in FreeCat.Core."
+  show ErrExtraTypeDeclaration = "Illegal: declared a type for a symbol twice in one context."
+  show ErrEquationWithoutMatchingTypeDeclaration = "Illegal: declared a pattern matching equation without declaring the lead symbol's type first."
 
 --
 -- Parse trees
@@ -446,7 +460,7 @@ addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef), pos
         debug ("pattern context " ++ show cPat)
         pat <- digestPattern cPat rawpat
         (def, defType) <- digestExpr cPat rawdef
-        --assertTypesMatch cPat defType (nativeContext sym) (definedType sym)
+        assertTypesMatch cPat defType (nativeContext sym) (definedType sym)
         decls <- mapM (digestVarDecl cPat) rawdecls
         augmentContext c (name sym) (Just $ nativeContext sym) (definedType sym) (declarationSourcePos sym)
           (definitions sym ++ [ (PatternDef decls pat def (Just pos)) ]) -- TODO: less consing
@@ -532,7 +546,9 @@ assertTypesMatch ac a bc b =
   do aEv <- preEvaluate ac a
      bEv <- preEvaluate bc b
      -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
-     if aEv == bEv then return () else barf ErrTypeMismatch
+     if aEv == bEv
+       then return ()
+       else barf (ErrTypeMismatch ac a bc b)
 
 completeContext :: Context -> FreeCat Context
 completeContext c =
