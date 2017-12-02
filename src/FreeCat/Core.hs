@@ -541,7 +541,7 @@ digestExpr c (RawAppExpr pos e0 e1) =
          do assertTypesMatch c e1d e1dType c e1d a
             return b
        DependentFunctionTypeExpr s a b pos ->
-         do --assertTypesMatch c a c e1dType
+         do assertTypesMatch c e1d e1dType c (SymbolExpr s pos) a
             c' <- augmentContext c (name s) Nothing a Nothing [ConstantDef e1d Nothing]
             debug ("preEvaluate " ++ show b)
             bEv <- preEvaluate c' b
