@@ -684,7 +684,7 @@ substitute s v e@(LambdaExpr s' t d pos) =
     else LambdaExpr s' (substitute s v t) (substitute s v d) Nothing
 substitute s v (FunctionTypeExpr a b pos) =
   FunctionTypeExpr (substitute s v a) (substitute s v b) pos
-substitue s v e@(DependentFunctionTypeExpr s' a b pos) =
+substitute s v e@(DependentFunctionTypeExpr s' a b pos) =
   if name s == name s'
     then e
     else DependentFunctionTypeExpr s' (substitute s v a) (substitute s v b) Nothing
