@@ -560,7 +560,7 @@ digestExpr c (RawLambdaExpr pos s t d) =
       )
 digestExpr c (RawFunctionTypeExpr pos a b) =
   do (ad, adType) <- digestExpr c a
-     --assertTypesMatch c adType rootContext typeOfTypes
+     assertTypesMatch c ad adType rootContext ad typeOfTypes
      (bd, bdType) <- digestExpr c b
      --assertTypesMatch c bdType rootContext typeOfTypes
      return (FunctionTypeExpr ad bd (Just pos), typeOfTypes)
