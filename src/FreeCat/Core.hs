@@ -164,7 +164,16 @@ data Expr =
  | LambdaExpr Symbol Expr Expr (Maybe SourcePos)
  | FunctionTypeExpr Expr Expr (Maybe SourcePos)
  | DependentFunctionTypeExpr Symbol Expr Expr (Maybe SourcePos)
- deriving (Eq)
+
+instance Eq Expr where
+  (SymbolExpr s _) == (SymbolExpr t _) = s == t
+  (AppExpr a0 b0 _) == (AppExpr a1 b1 _) = a0 == a1 && b0 == b1
+  -- TODO: alpha convertible lambdas should be equal
+  (LambdaExpr s0 a0 b0 _) == (LambdaExpr s1 a1 b1 _) = s0 == s1 && a0 == a1 && b0 == b1
+  (FunctionTypeExpr a0 b0 _) == (FunctionTypeExpr a1 b1 _) = a0 == a1 && b0 == b1
+  -- TODO: alpha convertible pis should be equal
+  (DependentFunctionTypeExpr s0 a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
+    s0 == s1 && a0 == a1 && b0 == b1
 
 patternToExpr :: Pattern -> Expr
 patternToExpr (SymbolPat s) = SymbolExpr s Nothing
