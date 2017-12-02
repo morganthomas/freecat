@@ -559,12 +559,12 @@ digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
 -- simply means their normal forms are syntactically equal.
 assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
 assertTypesMatch c0 e0 t0 c1 e1 t1 =
-  do aEv <- preEvaluate c0 t0
-     bEv <- preEvaluate c1 t1
+  do t0ev <- preEvaluate c0 t0
+     t1ev <- preEvaluate c1 t1
      -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
-     if aEv == bEv
+     if t0ev == t1ev
        then return ()
-       else barf (ErrTypeMismatch c0 e0 t1 c1 e1 t1)
+       else barf (ErrTypeMismatch c0 e0 t0ev c1 e1 t1ev)
 
 completeContext :: Context -> FreeCat Context
 completeContext c =
