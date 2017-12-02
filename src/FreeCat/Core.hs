@@ -550,7 +550,7 @@ digestExpr c (RawAppExpr pos e0 e1) =
      return ((AppExpr e0d e1d (Just pos)), appType)
 digestExpr c (RawLambdaExpr pos s t d) =
   do (td, tdType) <- digestExpr c t
-     --assertTypesMatch c tdType rootContext typeOfTypes
+     assertTypesMatch c td tdType rootContext td typeOfTypes
      c' <- augmentContext c s Nothing td Nothing []
      (dd, ddType) <- digestExpr c' d
      sym <- certainly (lookupSymbol c' s)
