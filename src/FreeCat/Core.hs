@@ -5,6 +5,7 @@
 module FreeCat.Core where
 
 import Data.Map as Map
+import Data.Maybe (fromMaybe)
 import Control.Monad (mapM, foldM)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
@@ -102,9 +103,7 @@ data Symbol = Symbol {
 }
 
 instance Eq Symbol where
-  -- temporarily weaken symbol equality
-  s == t = name s == name t
-  --s == t = name s == name t && nativeContext s == nativeContext t
+  s == t = name s == name t && nativeContext s == nativeContext t
 
 instance Show Symbol where
   show = name
@@ -291,15 +290,15 @@ _evaluate getContext c e@(AppExpr e0 e1 pos) =
                _evaluatePatternMatch getContext c' (definitions s) (AppExpr e0e e1e pos)
       LambdaExpr s t d pos ->
         do c' <- getContext s
-           ec' <- simplyAugmentContext c'
-                     (name s) (definedType s) Nothing [ConstantDef e1e Nothing]
+           ec' <- simplyAugmentContext c' (name s) Nothing
+              (definedType s) Nothing [ConstantDef e1e Nothing]
            _evaluate getContext ec' d
       FunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ _ -> barf ErrFunctionTypeOnAppLHS
 _evaluate getContext c e@(LambdaExpr s t d pos) =
   do debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
      te <- _evaluate getContext c t
-     c' <- simplyAugmentContext c (name s) t (declarationSourcePos s) []
+     c' <- simplyAugmentContext c (name s) Nothing t (declarationSourcePos s) []
      s' <- certainly (lookupSymbol c' (name s))
      de <- _evaluate getContext c' d
      return (LambdaExpr s' te de pos)
@@ -311,22 +310,22 @@ _evaluate getContext c e@(FunctionTypeExpr a b pos) =
 _evaluate getContext c e@(DependentFunctionTypeExpr s a b pos) = do
   debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
   ae <- _evaluate getContext c a
-  c' <- simplyAugmentContext c (name s) ae (declarationSourcePos s) []
+  c' <- simplyAugmentContext c (name s) Nothing ae (declarationSourcePos s) []
   s' <- certainly (lookupSymbol c' (name s))
   be <- _evaluate getContext c' b
   return (DependentFunctionTypeExpr s' ae be pos)
 
 -- Creates a new context which has the given context as parent and has a symbol
 -- with the given name, type, and definitions.
-simplyAugmentContext :: Context -> String -> Expr -> Maybe SourcePos ->
-  [Definition] -> FreeCat Context
-simplyAugmentContext parentContext vName vType pos vDefs =
+simplyAugmentContext :: Context -> String -> Maybe Context -> Expr ->
+  Maybe SourcePos -> [Definition] -> FreeCat Context
+simplyAugmentContext parentContext vName vNativeContext vType pos vDefs =
   do contextId <- popContextId
-     return $ _simplyAugmentContext parentContext vName vType pos vDefs contextId
+     return $ _simplyAugmentContext parentContext vName vNativeContext vType pos vDefs contextId
 
-_simplyAugmentContext :: Context -> String -> Expr -> Maybe SourcePos ->
-  [Definition] -> Integer -> Context
-_simplyAugmentContext parentContext vName vType pos vDefs contextId =
+_simplyAugmentContext :: Context -> String -> Maybe Context -> Expr ->
+  Maybe SourcePos -> [Definition] -> Integer -> Context
+_simplyAugmentContext parentContext vName vNativeContext vType pos vDefs contextId =
   let newContext =
         Context {
           contextId = contextId,
@@ -341,7 +340,7 @@ _simplyAugmentContext parentContext vName vType pos vDefs contextId =
           definedType = vType,
           declarationSourcePos = pos,
           definitions = vDefs,
-          nativeContext = newContext,
+          nativeContext = fromMaybe newContext vNativeContext,
           evaluationContext = Just newContext
         }
     in newContext
@@ -400,10 +399,15 @@ _unifyExprWithPattern (c, matches) e (SymbolPat t) =
           SymbolExpr u _ ->
             if u == t
               then return (Just (c, matches))
-              else debug "thing two" >> return Nothing
+              else do
+                debug ("symbol mismatch " ++ show u ++ " " ++ show t)
+                if name u == name t
+                  then debug ("due to mismatched contexts:\n" ++ show (nativeContext u) ++ "---\n" ++ show (nativeContext t))
+                  else return ()
+                return Nothing
           _ -> debug "thing three" >> return Nothing
        Nothing -> do
-         c' <- simplyAugmentContext c (name t) (definedType t) Nothing [ConstantDef e Nothing]
+         c' <- simplyAugmentContext c (name t) Nothing (definedType t) Nothing [ConstantDef e Nothing]
          return (Just (c', Map.insert (name t) e matches))
 _unifyExprWithPattern (c0, matches0) (AppExpr e f _) (AppPat p q) =
   do unifyResult1 <- _unifyExprWithPattern (c0, matches0) e p
@@ -444,7 +448,7 @@ addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef), pos
         (def, defType) <- digestExpr cPat rawdef
         --assertTypesMatch cPat defType (nativeContext sym) (definedType sym)
         decls <- mapM (digestVarDecl cPat) rawdecls
-        simplyAugmentContext c (name sym) (definedType sym) (declarationSourcePos sym)
+        simplyAugmentContext c (name sym) (Just $ nativeContext sym) (definedType sym) (declarationSourcePos sym)
           (definitions sym ++ [ (PatternDef decls pat def (Just pos)) ]) -- TODO: less consing
 
 digestTypeAssertion :: Context -> (RawTypeAssertion, Maybe SourcePos) -> FreeCat Context
@@ -454,7 +458,7 @@ digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
     Nothing ->
       do (t, tt) <- digestExpr c rawt
          --assertTypesMatch c tt rootContext typeOfTypes
-         c' <- simplyAugmentContext c s t pos []
+         c' <- simplyAugmentContext c s Nothing t pos []
          return c'
 
 digestPattern :: Context -> RawPattern -> FreeCat Pattern
@@ -490,7 +494,7 @@ digestExpr c (RawAppExpr pos e0 e1) =
             return b
        DependentFunctionTypeExpr s a b pos ->
          do --assertTypesMatch c a c e1dType
-            c' <- simplyAugmentContext c (name s) a Nothing [ConstantDef e1d Nothing]
+            c' <- simplyAugmentContext c (name s) Nothing a Nothing [ConstantDef e1d Nothing]
             debug ("preEvaluate " ++ show b)
             bEv <- preEvaluate c' b
             return bEv
@@ -499,7 +503,7 @@ digestExpr c (RawAppExpr pos e0 e1) =
 digestExpr c (RawLambdaExpr pos s t d) =
   do (td, tdType) <- digestExpr c t
      --assertTypesMatch c tdType rootContext typeOfTypes
-     c' <- simplyAugmentContext c s td Nothing []
+     c' <- simplyAugmentContext c s Nothing td Nothing []
      (dd, ddType) <- digestExpr c' d
      sym <- certainly (lookupSymbol c' s)
      return (
@@ -515,7 +519,7 @@ digestExpr c (RawFunctionTypeExpr pos a b) =
 digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
   do (ad, adType) <- digestExpr c a
      --assertTypesMatch c adType rootContext typeOfTypes
-     c' <- simplyAugmentContext c s ad (Just pos) []
+     c' <- simplyAugmentContext c s Nothing ad (Just pos) []
      sym <- certainly (lookupSymbol c' s)
      (bd, bdType) <- digestExpr c' b
      --assertTypesMatch c' bdType rootContext typeOfTypes
