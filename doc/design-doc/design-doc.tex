@@ -19,4 +19,70 @@ The conception and justification of FreeCat is rooted in a holistic, interdiscip
 
 This design document aims to be a self-contained conceptual explanation of FreeCat. Prior experience in any of the following areas is helpful, but not required, for understanding this document: functional programming, type theory, holistic analysis, foundations of math, mathematical logic, philosophical logic, category theory, abstract/universal algebra, programming language theory.
 
+\section{Context}
+
+This section gestures at some of the areas of thought which are closely related to FreeCat. The aim is to give an idea of where FreeCat's intellectual DNA comes from. For people familiar with these fields, hopefully it will help to contextualize FreeCat. None of this section is necessary for understanding FreeCat.
+
+\subsection{Type theory}
+
+Type theory is a field of math and a way of describing the foundations of math. Type theory is closely related to set theory. Set theory is the study of sets. Sets are collections of objects: e.g., the set of all even integers, the set of all unicorns, the set of all sets.
+
+Type theory is basically a theoretical approach to studying sets, which can be distinguished from classical set theory. Classical set theory, as exemplified by ZFC, was originally motivated in essence by the desire to provide theoretical foundations for math. Type theory today is most interesting for its applications to technology. Many computer programming languages and software verification systems are based on type theory. The demonstrated applicability of type theory to technology distinguishes it from classical set theory. The reason for the distinction is that type theory has been formulated in such a way that computers can feasibly process it.
+
+There are other interesting differences between type theory and classical set theory. Classical set theory includes the principle of extensionality, which states that if two sets have exactly the same elements, then they are the same set. Type theory frequently does not include this principle. In most computer implementations of type theory, this principle is not included. Instead there can be less powerful rules for saying when types are equal.
+
+Here’s another difference between type theory and classical set theory. Classical set theory is based on classical logic, most often first-order logic. The classical approach to logic and set theory defines logical rules of inference, such as those of first-order logic, and axioms about sets, such as those of ZFC. When combined they let you prove all of math, once you've defined every mathematical concept in terms of sets, which you can do. Type theory, on the other hand, simply defines rules for talking about types, and the rules of logic can be derived from these rules via the Curry-Howard isomorphism.
+
+In short, type theory is a way of thinking about sets, which can form the basis of computer programming languages, which often relaxes the principle of extensionality, and which unifies logic with set theory via the Curry-Howard isomorphism.
+
+\subsection{Constructive math}
+
+Constructive math is a style of math in which one restricts one's attention to mathematical objects which can be constructed in some suitable sense. For example, if you are doing math which only pertains to a finite number of things which could fit in the universe, then in a robust sense the math you are doing is constructive.
+
+Intuitionism is a subfield or paradigm of constructive math. Speaking generally and simplistically, intuitionists think that math properly concerns objects which can be constructed mentally. Intuitionists think that if an object exists for the purposes of math, then we can mentally construct (conceptualize, visualize) the object to any desired degree of detail. Whether you agree or disagree with intuitionists, their idea of mental construction of mathematical objects provides an accessible way of thinking about constructive math.
+
+Constructive math does not necessarily restrict its attention to finite objects only. There are a wide variety of ways of understanding the notion of constructive math, and the widest variety is in the ways of understanding constructive math which assume that constructive math can study infinite things.
+
+The varieties of type theory which are most relevant to technology are constructive type theories. What it means for a type theory to be constructive is a subtle question to which many answers are possible. For purposes of intuition, I lean on the intuitionist notion of mental construction. Constructive type theory is only concerned with objects which can be mentally constructed to any desired degree of detail, as well as realized in computer implementations.
+
+Constructive type theory can talk about infinite things. For example, it can talk about the type of integers, and the type of functions from integers to integers.
+
+The real numbers are an example of something constructive type theory can’t talk about. There are uncountably many real numbers. If you had a computer with infinite memory and infinite computation time, such a computer could not represent and do arithmetic on all real numbers. That statement assumes the hypothetical infinite computer is built in something resembling a conventional manner: something like an infinitely large circuit board. Actual computers have only finite memory and computation time. Uncountably infinite sets like the real numbers are far beyond what actual computers can fathom. Therefore they are beyond the realm of constructive type theory as I’m conceiving it.
+
+The only functions which are in the realm of constructive type theory as I’m conceiving it are partial μ-recursive functions, or other words functions which can be written in a regular pure functional programming language such as Haskell.
+
+\subsection{Inconsistent math}
+
+Inconsistent math is a fairly obscure and unpopular subfield of math, which I believe is mostly studied and practiced by philosophers. Inconsistent math refers to any style of math where contradictions can be true, or in other words where the same statement can be both true and false.
+
+Inconsistent math is unpopular probably in large part because most people assume that it is absurd and impossible for any statement (or at least any statement of math) to be both true and false. I have questioned this prevailing assumption in previous work, following other scholars including C.E. Mortensen, Mark Colyvan, Zach Weber, Graham Priest, Jc Beall, and David Ripley, to name a few.
+
+Inconsistent math has long been an interest of mine. I think inconsistent math is coherent, thinkable, workable, usable, and even useful. I’ll work to demonstrate that in this post.
+
+\subsection{Functional programming}
+
+FreeCat is a functional programming language. Functional programming is a way of thinking about software engineering. It is a very broad topic which today has increasing importance to practical software engineers.
+
+Functional programming languages can be classified as pure or impure. In pure functional languages, there is no notion of mutable state in the semantics of the core language. Pure functional languages ask the programmer to think about a world in which there is no change. Impure functional languages lack this property.
+
+Functional programming languages can be classified as typed or untyped, depending on whether or not they have a type system as part of the semantics of the core language.
+
+FreeCat is a pure typed functional programming language. This puts it in the same class as programming languages including Agda, Cayenne, Coq, Haskell, Idris, and PureScript.
+
+All of these languages are based on type theory. Type theory provides the underlying mathematical theories which are used to construct the languages mentioned in the previous paragraph. As far as I understand, in every case mentioned, the underlying type theories are constructive. This makes sense because constructive type theories can talk about what computers can talk about, whereas non-constructive type theories more or less by definition can talk about some things which computers can't talk about.
+
+Most of the type theory literature is concerned with logically consistent type theories. A logically consistent type theory is one in which it is not possible to prove that the same statement is both true and false. To prove a statement is in other words to construct an inhabitant of the type which is the statement under the Curry-Howard correspondence.
+
+Practical typed functional programming languages tend to be based on logically inconsistent type theories. This generally means that in these languages it's possible to prove any statement, or in other words (under the Curry-Howard correspondence), for any type it's possible to construct a value inhabiting it. TODO: exactly which languages discussed have this property?
+
+There are some good reasons to make the type theory of a practical programming language inconsistent or potentially inconsistent. For example, a language is potentially inconsistent if you are able to tell the implementation to assume that something is true when you haven't proven it. One important reason to want this capability is to be able to compile a program which is missing a proof you don't yet understand how to construct or don't have time to construct.
+
+Another reason to allow a programming language to be inconsistent is that the restrictions which type theorists impose to avoid logical inconsistency tend to prevent some ideas from being expressed.
+
+There is an interesting disconnect here. Type theorists usually study consistent type theories. Designers of practical typed functional programming languages tend to construct inconsistent type theories, and there seem to be some good reasons for that. Yet language designers who rely on type theory have tended to rely on consistent underlying type theories, even when the languages they design are inconsistent in the end. Arguably this leads to a worst of both worlds situation, where you have restrictions on what you can express which are intended to prevent inconsistency, but you also have the potential of inconsistency.
+
+FreeCat is based on the approach of rethinking type theory from the beginning with the assumption that it's not necessary to take steps to prevent the possibility of inconsistency. Of course it will be useful to have tools to try to discover inconsistency, or to rule out inconsistency in cases where this is practical and desirable. But FreeCat's core type theory doesn't contain restrictions designed to prevent paradoxes. This simplifies the core type theory and language design, and the hypothesis is that this will lead to substantial additional simplifications further down the road.
+
+The previous statements locate FreeCat in the space of conceptual paradigms discussed in this section. FreeCat is a pure typed functional programming language and an approach to the foundations of math. It is founded on a form of inconsistent constructive type theory.
+
 \end{document}
