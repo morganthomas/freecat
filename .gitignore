@@ -1,3 +1,8 @@
 dist/
 .cabal-sandbox/
 cabal.sandbox.config
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.pdf
