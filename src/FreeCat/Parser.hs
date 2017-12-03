@@ -6,7 +6,6 @@ import FreeCat.Core (
     Positioned,
     RawSymbol,
     RawExpr(..),
-    RawPattern(..),
     RawTypeAssertion(..),
     RawEquation(..),
     RawDeclaration(RawTypeDeclaration, RawEquationDeclaration),
@@ -64,7 +63,7 @@ declaration = do {
          exactToken FatArrowToken
          e <- expr
          exactToken SemicolonToken
-         let pat = foldl RawAppPat (RawSymbolPat s0) argPats in
+         let pat = foldl (RawAppExpr pos) (RawSymbolExpr pos s0) argPats in
           return (RawEquationDeclaration (RawEquation [] pat e), pos)
     )
   )
@@ -81,25 +80,27 @@ typeAssertion = do
 -- Patterns
 --
 
-pattern :: FreeCatParser RawPattern
+pattern :: FreeCatParser RawExpr
 pattern = pattern1
 
-pattern1 :: FreeCatParser RawPattern
+pattern1 :: FreeCatParser RawExpr
 pattern1 = do
+  pos <- getPosition
   pats <- many1 pattern0
   case pats of
     [pat] -> return pat
-    (pat:pats) -> return (foldl RawAppPat pat pats)
+    (pat:pats) -> return (foldl (RawAppExpr pos) pat pats)
 
-pattern0 :: FreeCatParser RawPattern
+pattern0 :: FreeCatParser RawExpr
 pattern0 = symbolPattern <|> parenthesizedPattern
 
-symbolPattern :: FreeCatParser RawPattern
+symbolPattern :: FreeCatParser RawExpr
 symbolPattern = do
+  pos <- getPosition
   s <- symbol
-  return (RawSymbolPat s)
+  return (RawSymbolExpr pos s)
 
-parenthesizedPattern :: FreeCatParser RawPattern
+parenthesizedPattern :: FreeCatParser RawExpr
 parenthesizedPattern = do
   exactToken OpenParenToken
   pat <- pattern

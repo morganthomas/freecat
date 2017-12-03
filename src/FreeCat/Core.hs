@@ -64,13 +64,11 @@ data RawExpr =
  | RawFunctionTypeExpr SourcePos RawExpr RawExpr
  | RawDependentFunctionTypeExpr SourcePos RawSymbol RawExpr RawExpr
 
-data RawPattern =
-   RawSymbolPat RawSymbol
- | RawAppPat RawPattern RawPattern
+type RawPattern = RawExpr
 
 rawPatternLeadSymbol :: RawPattern -> RawSymbol
-rawPatternLeadSymbol (RawSymbolPat s) = s
-rawPatternLeadSymbol (RawAppPat p q) = rawPatternLeadSymbol p
+rawPatternLeadSymbol (RawSymbolExpr pos s) = s
+rawPatternLeadSymbol (RawAppExpr pos p q) = rawPatternLeadSymbol p
 
 data RawTypeAssertion = RawTypeAssertion RawSymbol RawExpr
 data RawEquation = RawEquation [RawTypeAssertion] RawPattern RawExpr
@@ -150,14 +148,7 @@ showVariableDeclarationList (decl:decls) =
   (Prelude.foldl joinByComma (show decl) (Prelude.map show decls)) ++ ". "
   where joinByComma a b = a ++ ", " ++ b
 
-data Pattern =
-  -- the Expr argument is the type
-   SymbolPat Symbol Expr
- | AppPat Pattern Pattern Expr
-
-instance Show Pattern where
-  show (SymbolPat s t) = name s
-  show (AppPat f g t) = "("  ++ show f ++ " " ++ show g ++ ")"
+type Pattern = Expr
 
 data Expr =
  -- last argument of type Expr is the expression's type
@@ -205,10 +196,6 @@ instance Eq Expr where
   (DependentFunctionTypeExpr s0 a0 b0 _) == (FunctionTypeExpr a1 b1 _) =
     not (s0 `occursFreeIn` b0) && a0 == a1 && b0 == b1
   _ == _ = False
-
-patternToExpr :: Pattern -> Expr
-patternToExpr (SymbolPat s t) = SymbolExpr s t Nothing
-patternToExpr (AppPat a b t) = AppExpr (patternToExpr a) (patternToExpr b) t Nothing
 
 typeOf :: Expr -> Expr
 typeOf (SymbolExpr s t pos) = t
@@ -301,7 +288,7 @@ evaluate c (SymbolExpr s t pos) = do
     Just s' ->
       case definitions s' of
         (ConstantDef e pos : _) -> return e
-        (PatternDef [] (SymbolPat _ _) e pos : _) -> do
+        (PatternDef [] (SymbolExpr _ _ _) e pos : _) -> do
           c' <- getEvaluationContext s
           evaluate c' e
         _ -> debug ("symbol is irreducible 2 " ++ name s) >> return (SymbolExpr s (definedType s) pos)
@@ -429,7 +416,7 @@ unifyExprWithPattern c0 e pat =
        Nothing -> debug ("cannot unify " ++ show e ++ " with " ++ show pat) >> return Nothing
 
 _unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> FreeCat (Maybe (Context, Map String Expr))
-_unifyExprWithPattern (c, matches) e (SymbolPat t _) =
+_unifyExprWithPattern (c, matches) e (SymbolExpr t _ _) =
   case Map.lookup (name t) matches of
     Just v ->
       -- temporarily allow anything for a duplicate pattern variable
@@ -454,7 +441,7 @@ _unifyExprWithPattern (c, matches) e (SymbolPat t _) =
        Nothing -> do
          c' <- augmentContext c (name t) Nothing (definedType t) Nothing [ConstantDef e Nothing]
          return (Just (c', Map.insert (name t) e matches))
-_unifyExprWithPattern (c0, matches0) (AppExpr e f _ _) (AppPat p q _) =
+_unifyExprWithPattern (c0, matches0) (AppExpr e f _ _) (AppExpr p q _ _) =
   do unifyResult1 <- _unifyExprWithPattern (c0, matches0) e p
      case unifyResult1 of
        Nothing -> return Nothing
@@ -489,9 +476,9 @@ addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef), pos
      do cPat <- foldM digestTypeAssertion c (Prelude.map (,Nothing) rawdecls)
         debug ("digest equation " ++ show pos)
         debug ("pattern context " ++ show cPat)
-        (pat, patType) <- digestPattern cPat rawpat
+        (pat, patType) <- digestExpr cPat rawpat
         (def, defType) <- digestExpr cPat rawdef
-        assertTypesMatch cPat def defType cPat (patternToExpr pat) patType
+        assertTypesMatch cPat def defType cPat pat patType
         decls <- mapM (digestVarDecl cPat) rawdecls
         augmentContext c (name sym) (Just $ nativeContext sym) (definedType sym) (declarationSourcePos sym)
           (definitions sym ++ [ (PatternDef decls pat def (Just pos)) ]) -- TODO: less consing
@@ -505,26 +492,6 @@ digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
          assertTypesMatch c t tt rootContext t typeOfTypes
          c' <- augmentContext c s Nothing t pos []
          return c'
-
-digestPattern :: Context -> RawPattern -> FreeCat (Pattern, Expr)
-digestPattern c (RawSymbolPat s) =
-  case lookupSymbol c s of
-    Just sym -> return (SymbolPat sym (definedType sym), definedType sym)
-    Nothing -> barf (ErrSymbolNotDefined c Nothing s)
-digestPattern c (RawAppPat p q) =
-  do (pd, pdType) <- digestPattern c p
-     (pq, pqType) <- digestPattern c q
-     appType <- case pdType of
-       FunctionTypeExpr a b pos ->
-        do assertTypesMatch c (patternToExpr pq) pqType c (patternToExpr pq) a
-           return b
-       DependentFunctionTypeExpr s a b pos ->
-        do assertTypesMatch c (patternToExpr pq) pqType c (SymbolExpr s a pos) a
-           c' <- augmentContext c (name s) Nothing a Nothing [ConstantDef (patternToExpr pq) Nothing]
-           bEv <- evaluate c' b
-           return bEv
-       _ -> barf ErrAppHeadIsNotFunctionTyped
-     return (AppPat pd pq appType, appType)
 
 -- cPat is assumed to contain a declaration generated from this type
 -- assertion via digestTypeAssertion
@@ -642,21 +609,21 @@ addEvaluationContextToExpr ec (DependentFunctionTypeExpr s a b pos) =
     in DependentFunctionTypeExpr s a' b' pos
 
 addEvaluationContextToPattern :: Context -> Pattern -> Pattern
-addEvaluationContextToPattern ec (SymbolPat s t) =
+addEvaluationContextToPattern ec (SymbolExpr s t pos) =
   case Map.lookup (name s) (declarations ec) of
     Just s' ->
       if s == s' -- iff nativeContext s == nativeContext s', since we know name s == name s'
         then -- even though s == s', s' has the evaluation context added whereas s does not
-          SymbolPat s' t
+          SymbolExpr s' t pos
         else -- s' is some other symbol not declared in ec.
           -- this is right because we're not adding an evaluation context
           -- to symbols outside the evaluation context
-          SymbolPat s t
-    Nothing -> SymbolPat s t
-addEvaluationContextToPattern ec (AppPat f x t) =
+          SymbolExpr s t pos
+    Nothing -> SymbolExpr s t pos
+addEvaluationContextToPattern ec (AppExpr f x t pos) =
   let f' = addEvaluationContextToPattern ec f
       x' = addEvaluationContextToPattern ec x
-    in AppPat f' x' t
+    in AppExpr f' x' t pos
 
 addEvaluationContextToVariableDeclaration :: Context -> VariableDeclaration -> VariableDeclaration
 addEvaluationContextToVariableDeclaration ec (VarDecl s t) =
