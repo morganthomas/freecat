@@ -123,4 +123,6 @@ Every expression is of a specific type. The type of an expression of a specific 
 
 There is a function digestExpr of type $\text{Context} \to \text{RawExpr} \to \text{FreeCat Expr}$. (Here FreeCat denotes the FreeCat monad, which accounts for error handling and other issues.) A RawExpr or raw expression is the syntax of an expression without any contextual semantic interpretation applied to it. Given a context and a raw expression, digestExpr gives you an expression which is the interpretation of that raw expression in that context (or else it throws an error, etc.) This function, digestExpr, describes the one-to-many, context-dependent correspondence between syntactic or raw expressions, and semantic expressions, i.e. expressions.
 
+Every expression is of a specific type. The type is an intrinsic feature of the expression, given as part of the expression. The type is itself an expression, and it has its own type, which is always Type.
+
 \end{document}
