@@ -119,6 +119,8 @@ Functions are a fundamental class of object. A function maps objects of some typ
 
 Functions are defined by pattern matching equations. These equations express rules stating that expressions of given shapes can be replaced by other, dependent expressions.
 
+FreeCat expressions are evaluated following the rule of eager evaluation, where subexpressions of an expression are completely evaluated, left to right, before performing any evaluation step on the outermost expression. Pattern matching definitions are tried in the order they were declared, with the first match being taken.
+
 Every expression is of a specific type. The type of an expression of a specific form will depend on the context. A symbol name, such as ``foo'' or ``Type,'' may denote different symbols in different contexts. As such, syntactically identical expressions may be semantically different expressions.
 
 There is a function digestExpr of type $\text{Context} \to \text{RawExpr} \to \text{FreeCat Expr}$. (Here FreeCat denotes the FreeCat monad, which accounts for error handling and other issues.) A RawExpr or raw expression is the syntax of an expression without any contextual semantic interpretation applied to it. Given a context and a raw expression, digestExpr gives you an expression which is the interpretation of that raw expression in that context (or else it throws an error, etc.) This function, digestExpr, describes the one-to-many, context-dependent correspondence between syntactic or raw expressions, and semantic expressions, i.e. expressions.
