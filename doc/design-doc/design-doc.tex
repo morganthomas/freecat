@@ -127,4 +127,14 @@ There is a function digestExpr of type $\text{Context} \to \text{RawExpr} \to \t
 
 Every expression is of a specific type. The type is an intrinsic feature of the expression, given as part of the expression. The type is itself an expression, and it has its own type, which is always Type.
 
+There are the following kinds of expressions: symbols, applications, lambdas, and (dependent and non-dependent) function types.
+
+A context can be represented as a sequence of declarations. There are the following kinds of declarations: type declarations and equation declarations.
+
+Type declarations assert that a given symbol has a given type. Whenever you have an expression denoting a type, you can declare a symbol to have that type, as long as you haven't previously declared a type for that symbol in the current context.
+
+Equation declarations, also called pattern matching definitions, assert that during evaluation, expressions following the left hand side pattern should be replaced by the right hand side expression. As usual, the right hand expression may be dependent on variables in the left hand pattern.
+
+Patterns are like expressions, but they're restricted to consist of symbols and applications. The first symbol in the pattern is called the lead symbol. An equation declaration's left hand pattern must have a lead symbol whose type has been declared previously.
+
 \end{document}
