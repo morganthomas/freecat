@@ -188,8 +188,8 @@ rootContext =
    contextId = 0,
    uri = Nothing,
    parentContext = Nothing,
-   declarations = Map.empty,
-   importedSymbols = Map.singleton rawTypeSymbol rootTypeSymbol
+   declarations = Map.singleton rawTypeSymbol rootTypeSymbol,
+   importedSymbols = Map.empty
  }
 
 instance Eq Expr where
@@ -595,7 +595,9 @@ completeContext c =
              contextId = contextId,
              uri = (uri c),
              parentContext = Just rootContext,
-             declarations = Map.map (addEvaluationContextToSymbol completedContext) (declarations c),
+             declarations = Map.union
+              (declarations rootContext)
+              (Map.map (addEvaluationContextToSymbol completedContext) (declarations c)),
              importedSymbols = Map.empty
            }
        in return completedContext
