@@ -3,6 +3,10 @@
 \title{FreeCat design document}
 \author{Morgan Thomas}
 
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+
 \begin{document}
 
 \maketitle
@@ -102,5 +106,21 @@ Abstract algebra is a field of math which (basically) studies mathematical objec
 Universal algebra is a field of math which tries to generalize the patterns of abstract algebra in the form of general theories of algebras and concepts which help in studying algebras.
 
 FreeCat is conceptually connected to abstract algebra and universal algebra. FreeCat provides a system for defining sets (types) and operations (functions) on them. FreeCat can be viewed as a general system for constructing algebras. As such, FreeCat provides a way of thinking about abstract/universal algebra, while abstract/universal algebra provides a way of thinking about FreeCat.
+
+\section{Basic Concepts}
+
+The most basic concept in FreeCat is the concept of an object. Everything FreeCat can talk about is an object. ``Object'' is the root node of FreeCat's conceptual taxonomy.
+
+Types are a fundamental class of object. Every object is an instance of some type. There is a type called Type. Every type is an instance of Type. In particular, Type is an instance of itself.
+
+Objects in FreeCat are represented by expressions. For all practical purposes, in FreeCat, objects can be equated with expressions.
+
+Functions are a fundamental class of object. A function maps objects of some type to objects of other types. The type of a function's output can be dependent on the object it receives as input. In other words, FreeCat is a dependently typed language.
+
+Functions are defined by pattern matching equations. These equations express rules stating that expressions of given shapes can be replaced by other, dependent expressions.
+
+Every expression is of a specific type. The type of an expression of a specific form will depend on the context. A symbol name, such as ``foo'' or ``Type,'' may denote different symbols in different contexts. As such, syntactically identical expressions may be semantically different expressions.
+
+There is a function digestExpr of type $\text{Context} \to \text{RawExpr} \to \text{FreeCat Expr}$. (Here FreeCat denotes the FreeCat monad, which accounts for error handling and other issues.) A RawExpr or raw expression is the syntax of an expression without any contextual semantic interpretation applied to it. Given a context and a raw expression, digestExpr gives you an expression which is the interpretation of that raw expression in that context (or else it throws an error, etc.) This function, digestExpr, describes the one-to-many, context-dependent correspondence between syntactic or raw expressions, and semantic expressions, i.e. expressions.
 
 \end{document}
