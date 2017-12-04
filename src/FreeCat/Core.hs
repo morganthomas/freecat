@@ -113,7 +113,7 @@ data Symbol = Symbol {
   -- the context in which the symbol was originally defined
   nativeContext :: Context,
   -- the context to use for evaluating the symbol's definition
-  evaluationContext :: Maybe Context
+  evaluationContext :: Context
 }
 
 instance Eq Symbol where
@@ -167,7 +167,7 @@ rootTypeSymbol =
    declarationSourcePos = Nothing,
    definitions = [],
    nativeContext = rootContext,
-   evaluationContext = Nothing
+   evaluationContext = rootContext
  }
 
 typeOfTypes :: Expr
@@ -267,7 +267,7 @@ certainly (Just x) = return x
 certainly Nothing = barf ErrIThoughtThisWasImpossible
 
 getEvaluationContext :: Symbol -> FreeCat Context
-getEvaluationContext = certainly . evaluationContext
+getEvaluationContext = return . evaluationContext
 
 --
 -- Evaluation
@@ -368,7 +368,7 @@ _augmentContext parentContext vName vNativeContext vType pos vDefs contextId =
           declarationSourcePos = pos,
           definitions = vDefs,
           nativeContext = fromMaybe newContext vNativeContext,
-          evaluationContext = Just newContext
+          evaluationContext = newContext
         }
     in newContext
 
@@ -571,7 +571,7 @@ addEvaluationContextToSymbol ec s =
     declarationSourcePos = declarationSourcePos s,
     definitions = Prelude.map (addEvaluationContextToDefinition ec) (definitions s),
     nativeContext = nativeContext s,
-    evaluationContext = Just ec
+    evaluationContext = ec
   }
 
 addEvaluationContextToExpr :: Context -> Expr -> Expr
