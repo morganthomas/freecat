@@ -274,7 +274,7 @@ evaluate c e@(SymbolExpr s t pos) = do
     Nothing -> debug ("symbol is irreducible 1 " ++ name s) >> return e
     Just s' ->
       case equations s' of
-        (Equation c' [] _ e _ : _) -> evaluate c' e
+        (Equation c' [] (SymbolExpr _ _ _) e _ : _) -> evaluate c' e
         _ -> debug ("symbol is irreducible 2 " ++ name s) >> return (SymbolExpr s (definedType s) pos)
 evaluate c e@(AppExpr e0 e1 t pos) =
   do e0e <- evaluate c e0
