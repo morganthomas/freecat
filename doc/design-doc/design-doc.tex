@@ -159,4 +159,8 @@ digestExpr has type $\text{Context} \to \text{RawExpr} \to \text{FreeCat Expr}$.
 
 evaluate has type $\text{Context} \to \text{Expr} \to \text{FreeCat Expr}$. It takes as input a context and an expression, and produces as output an expression. The output expression is produced from the input expression by repeating reducing all reducible subexpressions, in depth first left to right order, so that in the end there are no reducible subexpressions. A reducible subexpression is either a function application whose head (i.e., left-hand subexpression) is a lambda expression, or a function application matching the left hand pattern of some equation declaration in the current context.
 
+Let's now unpack the types Context and Expr.
+
+TODO
+
 \end{document}
