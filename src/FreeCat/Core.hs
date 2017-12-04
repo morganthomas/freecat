@@ -271,7 +271,7 @@ evaluate :: Context -> Expr -> FreeCat Expr
 evaluate c e@(SymbolExpr s t pos) = do
   debug ("evaluate c " ++ (name s) ++ " where c = " ++ show c ++ "\n~~\n")
   case lookupSymbol c (name s) of
-    Nothing -> return e
+    Nothing -> debug ("symbol is irreducible 1 " ++ name s) >> return e
     Just s' ->
       case equations s' of
         (Equation c' [] _ e _ : _) -> evaluate c' e
