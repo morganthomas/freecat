@@ -151,7 +151,7 @@ data Expr =
  -- last argument of type Expr is the expression's type
    SymbolExpr Symbol Expr (Maybe SourcePos)
  | AppExpr Expr Expr Expr (Maybe SourcePos)
- -- Context is the context inside the lambda before the variable has a value
+ -- Context is the evaluation context for the lambda body
  | LambdaExpr Context Symbol Expr Expr Expr (Maybe SourcePos)
  -- type is necessarily Type, so expression's type isn't included
  | FunctionTypeExpr Expr Expr (Maybe SourcePos)
