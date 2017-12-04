@@ -297,14 +297,14 @@ evaluate c e@(AppExpr e0 e1 t pos) =
            evaluate ec' d
       FunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ _ -> barf ErrFunctionTypeOnAppLHS
-evaluate c e@(LambdaExpr c' s t d lt pos) =
-  do debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
-     te <- evaluate c t
-     lte <- evaluate c lt
-     c' <- augmentContext c (name s) Nothing t (declarationSourcePos s) []
-     s' <- certainly (lookupSymbol c' (name s))
-     de <- evaluate c' d
-     return (LambdaExpr c' s' te de lte pos)
+evaluate c0 e@(LambdaExpr c1 s t d lt pos) =
+  do debug ("evaluate c " ++ show e ++ " where c = " ++ show c0 ++ "\n~~\n")
+     te <- evaluate c0 t
+     lte <- evaluate c0 lt
+     c2 <- augmentContext c0 (name s) Nothing t (declarationSourcePos s) []
+     s' <- certainly (lookupSymbol c2 (name s))
+     de <- evaluate c2 d
+     return (LambdaExpr c2 s' te de lte pos)
 evaluate c e@(FunctionTypeExpr a b pos) =
   do debug ("evaluate c " ++ show e ++ " where c = " ++ show c)
      ae <- evaluate c a
