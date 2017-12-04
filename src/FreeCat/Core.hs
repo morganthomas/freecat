@@ -23,7 +23,6 @@ data Error =
    ErrFunctionTypeOnAppLHS
  | ErrExpectedLeadSymbolFoundLambda
  | ErrExpectedLeadSymbolFoundFunctionType
- | ErrExpectedPatternMatchDefGotConstantDef
  | ErrSymbolNotDefined Context (Maybe SourcePos) String
  | ErrAppHeadIsNotFunctionTyped
  | ErrTypeMismatch Context Expr Expr Context Expr Expr
@@ -35,7 +34,6 @@ instance Show Error where
   show ErrFunctionTypeOnAppLHS = "Nonsense: function type on left hand side of function application expression."
   show ErrExpectedLeadSymbolFoundLambda = "Expected lead symbol, found lambda expression. This condition should never occur. There is a bug in FreeCat.Core."
   show ErrExpectedLeadSymbolFoundFunctionType = "Expected lead symbol, found function type. This condition should never occur. There is a bug in FreeCat.Core."
-  show ErrExpectedPatternMatchDefGotConstantDef = "Illegal: found a constant definition for a symbol with pattern match definitions. A symbol can have exactly one constant definition, or any number of pattern match definitions, but not both."
   show (ErrSymbolNotDefined c pos s) = "Symbol not defined: " ++ s
     ++ "\nSource pos: " ++ show pos
     ++ "\nContext:\n" ++ show c
@@ -98,22 +96,20 @@ data Context = Context {
 
 instance Show Context where
   -- TODO: less consing
-  show c = Prelude.foldl (++) "" (Map.map showSymbolDefinition (declarations c))
+  show c = Prelude.foldl (++) "" (Map.map showSymbolEquations (declarations c))
 
-showSymbolDefinition :: Symbol -> String
-showSymbolDefinition s = name s ++ " : " ++ show (definedType s) ++ "\n"
-  ++ (Prelude.foldl (++) "" $ Prelude.map (\d -> show d ++ "\n") (definitions s))
+showSymbolEquations :: Symbol -> String
+showSymbolEquations s = name s ++ " : " ++ show (definedType s) ++ "\n"
+  ++ (Prelude.foldl (++) "" $ Prelude.map (\d -> show d ++ "\n") (equations s))
 
 data Symbol = Symbol {
   name :: String,
   definedType :: Expr,
   declarationSourcePos :: Maybe SourcePos,
-  -- all pattern definitions have this symbol as their lead symbol
-  definitions :: [Definition],
+  -- all pattern equations have this symbol as their lead symbol
+  equations :: [Equation],
   -- the context in which the symbol was originally defined
-  nativeContext :: Context,
-  -- the context to use for evaluating the symbol's definition
-  evaluationContext :: Context
+  nativeContext :: Context
 }
 
 instance Eq Symbol where
@@ -127,13 +123,14 @@ instance Eq Symbol where
 instance Show Symbol where
   show = name
 
-data Definition =
-   ConstantDef Expr (Maybe SourcePos)
- | PatternDef [VariableDeclaration] Pattern Expr (Maybe SourcePos)
+data Equation = -- the Context is the evaluation context
+  Equation Context [VariableDeclaration] Pattern Expr (Maybe SourcePos)
 
-instance Show Definition where
-  show (ConstantDef e pos) = "    " ++ show e
-  show (PatternDef decls pat e pos) =
+constantDefinition :: Symbol -> Expr -> Equation
+constantDefinition s e = Equation rootContext [] (SymbolExpr s (typeOf e) Nothing) e Nothing
+
+instance Show Equation where
+  show (Equation c decls pat e pos) =
     "    " ++ showVariableDeclarationList decls
     ++ show pat ++ " = " ++ show e
 
@@ -154,7 +151,8 @@ data Expr =
  -- last argument of type Expr is the expression's type
    SymbolExpr Symbol Expr (Maybe SourcePos)
  | AppExpr Expr Expr Expr (Maybe SourcePos)
- | LambdaExpr Symbol Expr Expr Expr (Maybe SourcePos)
+ -- Context is the context inside the lambda before the variable has a value
+ | LambdaExpr Context Symbol Expr Expr Expr (Maybe SourcePos)
  -- type is necessarily Type, so expression's type isn't included
  | FunctionTypeExpr Expr Expr (Maybe SourcePos)
  | DependentFunctionTypeExpr Symbol Expr Expr (Maybe SourcePos)
@@ -165,9 +163,8 @@ rootTypeSymbol =
    name = rawTypeSymbol,
    definedType = typeOfTypes,
    declarationSourcePos = Nothing,
-   definitions = [],
-   nativeContext = rootContext,
-   evaluationContext = rootContext
+   equations = [],
+   nativeContext = rootContext
  }
 
 typeOfTypes :: Expr
@@ -186,7 +183,7 @@ rootContext =
 instance Eq Expr where
   (SymbolExpr s _ _) == (SymbolExpr t _ _) = s == t
   (AppExpr a0 b0 _ _) == (AppExpr a1 b1 _ _) = a0 == a1 && b0 == b1
-  (LambdaExpr s0 a0 b0 t0 _) == (LambdaExpr s1 a1 b1 t1 _) =
+  (LambdaExpr c0 s0 a0 b0 t0 _) == (LambdaExpr c1 s1 a1 b1 t1 _) =
     a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 a0 Nothing) b1)
   (FunctionTypeExpr a0 b0 _) == (FunctionTypeExpr a1 b1 _) = a0 == a1 && b0 == b1
   (DependentFunctionTypeExpr s0 a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
@@ -200,14 +197,14 @@ instance Eq Expr where
 typeOf :: Expr -> Expr
 typeOf (SymbolExpr s t pos) = t
 typeOf (AppExpr a b t pos) = t
-typeOf (LambdaExpr s a e t pos) = t
+typeOf (LambdaExpr c s a e t pos) = t
 typeOf (FunctionTypeExpr _ _ _) = typeOfTypes
 typeOf (DependentFunctionTypeExpr _ _ _ _) = typeOfTypes
 
 instance Show Expr where
   show (SymbolExpr s t pos) = name s
   show (AppExpr f g t pos) = "(" ++ show f ++ " " ++ show g ++ ")"
-  show (LambdaExpr s t e lt pos) = "(\\" ++ name s ++ " : " ++ show t ++ " => " ++ show e ++ ")"
+  show (LambdaExpr c s t e lt pos) = "(\\" ++ name s ++ " : " ++ show t ++ " => " ++ show e ++ ")"
   show (FunctionTypeExpr a b pos) = "(" ++ show a ++ " -> " ++ show b ++ ")"
   show (DependentFunctionTypeExpr s a b pos) = "((" ++ name s ++ " : " ++ show a ++ ") -> " ++ show b ++ ")"
 
@@ -266,25 +263,18 @@ certainly :: Maybe a -> FreeCat a
 certainly (Just x) = return x
 certainly Nothing = barf ErrIThoughtThisWasImpossible
 
-getEvaluationContext :: Symbol -> FreeCat Context
-getEvaluationContext = return . evaluationContext
-
 --
 -- Evaluation
 --
 
 evaluate :: Context -> Expr -> FreeCat Expr
-evaluate c (SymbolExpr s t pos) = do
+evaluate c e@(SymbolExpr s t pos) = do
   debug ("evaluate c " ++ (name s) ++ " where c = " ++ show c ++ "\n~~\n")
   case lookupSymbol c (name s) of
-    Nothing ->
-      barf (ErrSymbolNotDefined c pos (name s))
+    Nothing -> return e
     Just s' ->
-      case definitions s' of
-        (ConstantDef e pos : _) -> return e
-        (PatternDef [] (SymbolExpr _ _ _) e pos : _) -> do
-          c' <- getEvaluationContext s
-          evaluate c' e
+      case equations s' of
+        (Equation c' [] _ e _ : _) -> evaluate c' e
         _ -> debug ("symbol is irreducible 2 " ++ name s) >> return (SymbolExpr s (definedType s) pos)
 evaluate c e@(AppExpr e0 e1 t pos) =
   do e0e <- evaluate c e0
@@ -295,40 +285,26 @@ evaluate c e@(AppExpr e0 e1 t pos) =
       SymbolExpr s t pos ->
         case lookupSymbol c (name s) of
           Nothing -> debug ("symbol is irreducible 3 " ++ name s) >> return (AppExpr e0e e1e te pos)
-          Just s ->
-            case definitions s of
-              [] -> return (AppExpr e0e e1e te pos)
-              (ConstantDef d pos : _) -> do
-                c' <- getEvaluationContext s
-                evaluate c' (AppExpr d e1e te pos)
-              defs -> do
-                -- TODO: if pattern defs for a symbol can originate from
-                -- different contexts, then those defs can have different
-                -- evaluation contexts
-                c' <- getEvaluationContext s
-                evaluatePatternMatch c' defs (AppExpr e0e e1e te pos)
+          Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e te pos)
       AppExpr _ _ _ pos ->
         do s <- leadSymbol e0e
            case lookupSymbol c (name s) of
              Nothing -> debug ("symbol is irreducible 4 " ++ name s) >> return (AppExpr e0e e1e te pos)
-             Just s -> do
-               c' <- getEvaluationContext s
-               evaluatePatternMatch c' (definitions s) (AppExpr e0e e1e te pos)
-      LambdaExpr s t d lt pos ->
-        do c' <- getEvaluationContext s
-           ec' <- augmentContext c' (name s) Nothing
-              (definedType s) Nothing [ConstantDef e1e Nothing]
+             Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e te pos)
+      LambdaExpr c' s t d lt pos ->
+        do ec' <- augmentContext c' (name s) Nothing
+              (definedType s) Nothing [constantDefinition s e1e]
            evaluate ec' d
       FunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ _ -> barf ErrFunctionTypeOnAppLHS
-evaluate c e@(LambdaExpr s t d lt pos) =
+evaluate c e@(LambdaExpr c' s t d lt pos) =
   do debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
      te <- evaluate c t
      lte <- evaluate c lt
      c' <- augmentContext c (name s) Nothing t (declarationSourcePos s) []
      s' <- certainly (lookupSymbol c' (name s))
      de <- evaluate c' d
-     return (LambdaExpr s' te de lte pos)
+     return (LambdaExpr c' s' te de lte pos)
 evaluate c e@(FunctionTypeExpr a b pos) =
   do debug ("evaluate c " ++ show e ++ " where c = " ++ show c)
      ae <- evaluate c a
@@ -343,16 +319,16 @@ evaluate c e@(DependentFunctionTypeExpr s a b pos) = do
   return (DependentFunctionTypeExpr s' ae be pos)
 
 -- Creates a new context which has the given context as parent and has a symbol
--- with the given name, type, and definitions.
+-- with the given name, type, and equations.
 augmentContext :: Context -> String -> Maybe Context -> Expr ->
-  Maybe SourcePos -> [Definition] -> FreeCat Context
+  Maybe SourcePos -> [Equation] -> FreeCat Context
 augmentContext parentContext vName vNativeContext vType pos vDefs =
   do contextId <- popContextId
      return $ _augmentContext parentContext vName vNativeContext vType pos vDefs contextId
 
 _augmentContext :: Context -> String -> Maybe Context -> Expr ->
-  Maybe SourcePos -> [Definition] -> Integer -> Context
-_augmentContext parentContext vName vNativeContext vType pos vDefs contextId =
+  Maybe SourcePos -> [Equation] -> Integer -> Context
+_augmentContext parentContext vName vNativeContext vType pos equations contextId =
   let newContext =
         Context {
           contextId = contextId,
@@ -366,9 +342,8 @@ _augmentContext parentContext vName vNativeContext vType pos vDefs contextId =
           name = vName,
           definedType = vType,
           declarationSourcePos = pos,
-          definitions = vDefs,
-          nativeContext = fromMaybe newContext vNativeContext,
-          evaluationContext = newContext
+          equations = equations,
+          nativeContext = fromMaybe newContext vNativeContext
         }
     in newContext
 
@@ -376,23 +351,21 @@ _augmentContext parentContext vName vNativeContext vType pos vDefs contextId =
 leadSymbol :: Expr -> FreeCat Symbol
 leadSymbol (SymbolExpr s t pos) = return s
 leadSymbol (AppExpr e0 e1 t pos) = leadSymbol e0
-leadSymbol (LambdaExpr _ _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
+leadSymbol (LambdaExpr _ _ _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
 leadSymbol (FunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
 leadSymbol (DependentFunctionTypeExpr _ _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
 
--- Checks if the given expr matches any of the given pattern match definitions.
+-- Checks if the given expr matches any of the given pattern match equations.
 -- Returns the result of evaluating the expr against the first matching definition
 -- if one matches, and throws an error if no patterns match. Assumes the
 -- subexpressions of the given expr are normalized.
-evaluatePatternMatch :: Context -> [Definition] -> Expr -> FreeCat Expr
-evaluatePatternMatch c [] e = debug ("no patterns matching " ++ show e) >> return e
-evaluatePatternMatch c ((ConstantDef _ _):_) e =
-  barf ErrExpectedPatternMatchDefGotConstantDef
-evaluatePatternMatch c0 ((PatternDef _ p d pos):defs) e =
+evaluatePatternMatch :: [Equation] -> Expr -> FreeCat Expr
+evaluatePatternMatch [] e = debug ("no patterns matching " ++ show e) >> return e
+evaluatePatternMatch ((Equation c0 _ p d pos):defs) e =
   do unifyResult <- unifyExprWithPattern c0 e p
      case unifyResult of
       Just c1 -> evaluate c1 d
-      Nothing -> evaluatePatternMatch c0 defs e
+      Nothing -> evaluatePatternMatch defs e
 
 -- Takes an expr and a pattern and returns an augmented context in which the
 -- pattern variables are defined according to the unification of expr and pattern.
@@ -405,7 +378,7 @@ unifyExprWithPattern c0 e pat =
        Just (c1, matches) ->
         debug (show matches) >>
         debug (show (Map.keys (declarations c1))) >>
-        --(certainly (Map.lookup "f" (declarations c)) >>= debug . definitions) >>
+        --(certainly (Map.lookup "f" (declarations c)) >>= debug . equations) >>
         return (Just c1)
        Nothing -> debug ("cannot unify " ++ show e ++ " with " ++ show pat) >> return Nothing
 
@@ -433,7 +406,8 @@ _unifyExprWithPattern (c, matches) e (SymbolExpr t _ _) =
                 return Nothing
           _ -> debug "thing three" >> return Nothing
        Nothing -> do
-         c' <- augmentContext c (name t) Nothing (definedType t) Nothing [ConstantDef e Nothing]
+         c' <- augmentContext c (name t) Nothing (definedType t) Nothing
+                [constantDefinition t e]
          return (Just (c', Map.insert (name t) e matches))
 _unifyExprWithPattern (c0, matches0) (AppExpr e f _ _) (AppExpr p q _ _) =
   do unifyResult1 <- _unifyExprWithPattern (c0, matches0) e p
@@ -475,7 +449,7 @@ addToContext c (RawEquationDeclaration (RawEquation rawdecls rawpat rawdef), pos
         assertTypesMatch cPat def defType cPat pat patType
         decls <- mapM (digestVarDecl cPat) rawdecls
         augmentContext c (name sym) (Just $ nativeContext sym) (definedType sym) (declarationSourcePos sym)
-          (definitions sym ++ [ (PatternDef decls pat def (Just pos)) ]) -- TODO: less consing
+          (equations sym ++ [ (Equation c decls pat def (Just pos)) ]) -- TODO: less consing
 
 digestTypeAssertion :: Context -> (RawTypeAssertion, Maybe SourcePos) -> FreeCat Context
 digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
@@ -510,7 +484,8 @@ digestExpr c (RawAppExpr pos e0 e1) =
             return b
        DependentFunctionTypeExpr s a b pos ->
          do assertTypesMatch c e1d e1dType c (SymbolExpr s a pos) a
-            c' <- augmentContext c (name s) Nothing a Nothing [ConstantDef e1d Nothing]
+            c' <- augmentContext c (name s) Nothing a Nothing
+                    [constantDefinition s e1d]
             bEv <- evaluate c' b
             return bEv
        _ -> barf ErrAppHeadIsNotFunctionTyped
@@ -522,7 +497,7 @@ digestExpr c (RawLambdaExpr pos s t d) =
      (dd, ddType) <- digestExpr c' d
      sym <- certainly (lookupSymbol c' s)
      let lt = (DependentFunctionTypeExpr sym td ddType (Just pos)) in
-       return (LambdaExpr sym td dd lt (Just pos), lt)
+       return (LambdaExpr c' sym td dd lt (Just pos), lt)
 digestExpr c (RawFunctionTypeExpr pos a b) =
   do (ad, adType) <- digestExpr c a
      assertTypesMatch c ad adType rootContext ad typeOfTypes
@@ -569,9 +544,8 @@ addEvaluationContextToSymbol ec s =
     name = name s,
     definedType = addEvaluationContextToExpr ec (definedType s),
     declarationSourcePos = declarationSourcePos s,
-    definitions = Prelude.map (addEvaluationContextToDefinition ec) (definitions s),
-    nativeContext = nativeContext s,
-    evaluationContext = ec
+    equations = Prelude.map (addEvaluationContextToEquation ec) (equations s),
+    nativeContext = nativeContext s
   }
 
 addEvaluationContextToExpr :: Context -> Expr -> Expr
@@ -588,11 +562,11 @@ addEvaluationContextToExpr ec (AppExpr f x t pos) =
       x' = addEvaluationContextToExpr ec x
       t' = addEvaluationContextToExpr ec t
     in AppExpr f' x' t' pos
-addEvaluationContextToExpr ec (LambdaExpr s t d lt pos) =
+addEvaluationContextToExpr ec (LambdaExpr c s t d lt pos) =
   let t' = addEvaluationContextToExpr ec t
       d' = addEvaluationContextToExpr ec d
       lt' = addEvaluationContextToExpr ec lt
-    in LambdaExpr s t' d' lt' pos
+    in LambdaExpr ec s t' d' lt' pos
 addEvaluationContextToExpr ec (FunctionTypeExpr a b pos) =
   let a' = addEvaluationContextToExpr ec a
       b' = addEvaluationContextToExpr ec b
@@ -624,15 +598,12 @@ addEvaluationContextToVariableDeclaration ec (VarDecl s t) =
   let t' = addEvaluationContextToExpr ec t
     in VarDecl s t'
 
-addEvaluationContextToDefinition :: Context -> Definition -> Definition
-addEvaluationContextToDefinition ec (ConstantDef e pos) =
-  let e' = addEvaluationContextToExpr ec e'
-    in (ConstantDef e' pos)
-addEvaluationContextToDefinition ec (PatternDef decls pat e pos) =
+addEvaluationContextToEquation :: Context -> Equation -> Equation
+addEvaluationContextToEquation ec (Equation c decls pat e pos) =
   let decls' = Prelude.map (addEvaluationContextToVariableDeclaration ec) decls
       pat' = addEvaluationContextToPattern ec pat
       e' = addEvaluationContextToExpr ec e
-    in (PatternDef decls' pat' e' pos)
+    in (Equation ec decls' pat' e' pos)
 
 --
 -- Dealing with variables
@@ -647,11 +618,11 @@ substitute s v e@(SymbolExpr s' t pos) =
 substitute s v (AppExpr a b t pos) =
   -- TODO: is this correct for t?
   AppExpr (substitute s v a) (substitute s v b) (substitute s v t) Nothing
-substitute s v e@(LambdaExpr s' t d lt pos) =
+substitute s v e@(LambdaExpr c s' t d lt pos) =
   if s == s'
     then e
     -- TODO: is this correct for lt?
-    else LambdaExpr s' (substitute s v t) (substitute s v d) (substitute s v lt) Nothing
+    else LambdaExpr c s' (substitute s v t) (substitute s v d) (substitute s v lt) Nothing
 substitute s v (FunctionTypeExpr a b pos) =
   FunctionTypeExpr (substitute s v a) (substitute s v b) pos
 substitute s v e@(DependentFunctionTypeExpr s' a b pos) =
@@ -663,7 +634,7 @@ substitute s v e@(DependentFunctionTypeExpr s' a b pos) =
 occursFreeIn :: Symbol -> Expr -> Bool
 s `occursFreeIn` (SymbolExpr s' _ _) = s == s'
 s `occursFreeIn` (AppExpr a b _ _) = s `occursFreeIn` a || s `occursFreeIn` b
-s `occursFreeIn` (LambdaExpr s' t e _ _) =
+s `occursFreeIn` (LambdaExpr c s' t e _ _) =
   s `occursFreeIn` t
   || (s /= s' && occursFreeIn s e)
 s `occursFreeIn` (FunctionTypeExpr a b _) = s `occursFreeIn` a || s `occursFreeIn` b
