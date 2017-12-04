@@ -217,12 +217,6 @@ lookupSymbol c s =
     Just sym -> Just sym
     Nothing -> Map.lookup s (importedSymbols c)
 
-evaluationOrNativeContext :: Symbol -> Context
-evaluationOrNativeContext s =
-  case evaluationContext s of
-    Just c -> c
-    Nothing -> nativeContext s
-
 instance Eq Context where
   c0 == c1 = contextId c0 == contextId c1
 
