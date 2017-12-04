@@ -113,12 +113,7 @@ data Symbol = Symbol {
 }
 
 instance Eq Symbol where
-  s == t =
-    -- for now, freak out if there are symbols with the same name and diff. contexts.
-    -- this case is actually legal but for now it won't occur on purpose.
-    if name s == name t && nativeContext s /= nativeContext t
-      then error ("same symbol different context: " ++ name s ++ "\n" ++ show (nativeContext s) ++ "\n--\n" ++ show (nativeContext t))
-      else name s == name t && nativeContext s == nativeContext t
+  s == t = name s == name t && nativeContext s == nativeContext t
 
 instance Show Symbol where
   show = name
@@ -301,12 +296,7 @@ evaluate c e@(AppExpr e0 e1 t pos) =
       DependentFunctionTypeExpr _ _ _ _ -> barf ErrFunctionTypeOnAppLHS
 evaluate c0 e@(LambdaExpr c1 s t d lt pos) =
   do debug ("evaluate c " ++ show e ++ " where c = " ++ show c0 ++ "\n~~\n")
-     te <- evaluate c0 t
-     lte <- evaluate c0 lt
-     c2 <- augmentContext c0 (name s) Nothing t (declarationSourcePos s) []
-     s' <- certainly (lookupSymbol c2 (name s))
-     de <- evaluate c2 d
-     return (LambdaExpr c2 s' te de lte pos)
+     return e
 evaluate c e@(FunctionTypeExpr a b pos) =
   do debug ("evaluate c " ++ show e ++ " where c = " ++ show c)
      ae <- evaluate c a
@@ -314,11 +304,7 @@ evaluate c e@(FunctionTypeExpr a b pos) =
      return (FunctionTypeExpr ae be pos)
 evaluate c e@(DependentFunctionTypeExpr s a b pos) = do
   debug ("evaluate c " ++ show e ++ " where c = " ++ show c ++ "\n~~\n")
-  ae <- evaluate c a
-  c' <- augmentContext c (name s) Nothing ae (declarationSourcePos s) []
-  s' <- certainly (lookupSymbol c' (name s))
-  be <- evaluate c' b
-  return (DependentFunctionTypeExpr s' ae be pos)
+  return e
 
 -- Creates a new context which has the given context as parent and has a symbol
 -- with the given name, type, and equations.
@@ -524,7 +510,7 @@ assertTypesMatch c0 e0 t0 c1 e1 t1 =
      -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
      if t0ev == t1ev
        then return ()
-       else barf (ErrTypeMismatch c0 e0 t0ev c1 e1 t1ev)
+       else debug ("Type mismatch! " ++ show (ErrTypeMismatch c0 e0 t0ev c1 e1 t1ev))
 
 completeContext :: Context -> FreeCat Context
 completeContext c =
