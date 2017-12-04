@@ -152,6 +152,8 @@ data Expr =
    SymbolExpr Symbol Expr (Maybe SourcePos)
  | AppExpr Expr Expr Expr (Maybe SourcePos)
  -- Context is the evaluation context for the lambda body
+ -- Expr arguments are (in order) the variable type, the definition, and the
+ -- type of the whole lambda expr
  | LambdaExpr Context Symbol Expr Expr Expr (Maybe SourcePos)
  -- type is necessarily Type, so expression's type isn't included
  | FunctionTypeExpr Expr Expr (Maybe SourcePos)
@@ -556,7 +558,7 @@ addEvaluationContextToExpr ec (SymbolExpr s t pos) =
         if nativeContext s == nativeContext s'
           then SymbolExpr s' t' pos
           else SymbolExpr s t' pos
-      Nothing -> SymbolExpr s t' Nothing
+      Nothing -> SymbolExpr s t' pos
 addEvaluationContextToExpr ec (AppExpr f x t pos) =
   let f' = addEvaluationContextToExpr ec f
       x' = addEvaluationContextToExpr ec x
