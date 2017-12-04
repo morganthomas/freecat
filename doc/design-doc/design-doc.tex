@@ -21,7 +21,7 @@ FreeCat doesn't aim to be the best approach to solving everybody's problem. For 
 
 The conception and justification of FreeCat is rooted in a holistic, interdisciplinary approach to analysis. This holistic methodology assumes that there are deep connections between fundamental problems in different technical disciplines. It assumes in essence that we can clarify our thinking about technical problems in general by developing theories which can systematize solutions to technical problems in general.
 
-This design document aims to give a self-contained conceptual explanation of FreeCat. The Context section is not self-contained. The other sections should explain FreeCat in a self-contained way which does not require understanding of the Context section.
+This design document aims to give a self-contained conceptual explanation of FreeCat. The Context section is not self-contained. The other sections should explain FreeCat in a self-contained way which does not require understanding of the Context section. It's hard to state exact prerequisites for reading this document, but required prerequisites include some familiarity with functional programming and computer science concepts.
 
 Prior experience in any of the following areas is helpful, but not required, for understanding this document: functional programming, type theory, holistic analysis, foundations of math, mathematical logic, philosophical logic, category theory, abstract/universal algebra, programming language theory.
 
@@ -144,5 +144,19 @@ TODO
 \section{Semantics}
 
 This section gives a rigorous mathematical definition of the semantics of FreeCat. Rigorous does not mean complete in all details. For something more like a complete definition of the semantics of FreeCat, see the code, and in particular the file src/FreeCat/Core.hs. The purpose of this section is to provide a higher-level, rigorous and semi-formal account of FreeCat's semantics, which abstracts away from a lot of the details the code handles.
+
+Semantics is the study of meaning. Whereas the syntax of FreeCat tells you what FreeCat expressions and declarations look like, the semantics of FreeCat tells you how to interpret FreeCat expressions and declarations. Specifically, it gives you a mathematical theory of how to interpret FreeCat expressions and declarations.
+
+A context in FreeCat is represented by a sequence of declarations: type declarations and equation declarations.
+
+There are basically two aspects to the semantics of FreeCat: the semantics of contexts, and the semantics of expressions. The semantics of contexts tells you how to interpret a representation of a context (i.e., a series of declarations). The semantics of expressions tells you how to interpret an expression relative to a context.
+
+The semantics of contexts is basically characterized by a function digestContext of type $\text{RawContext} \to \text{FreeCat Context}$. Here RawContext is the type of uninterpreted, syntactic sequences of declarations. Context is the type of contexts, and FreeCat is the FreeCat monad, which deals with error conditions and other things.
+
+The semantics of expressions is basically characterized by two functions: digestExpr, and evaluate.
+
+digestExpr has type $\text{Context} \to \text{RawExpr} \to \text{FreeCat Expr}$. It takes as input a context and an uninterpreted syntactic expression, i.e. a RawExpr. It produces as output an interpreted semantic expression, i.e. an Expr (or it throws an error, etc.)
+
+evaluate has type $\text{Context} \to \text{Expr} \to \text{FreeCat Expr}$. It takes as input a context and an expression, and produces as output an expression. The output expression is produced from the input expression by reducing all reducible subexpressions, in depth first left to right order. A reducible subexpression is either a function application whose head (i.e., left-hand subexpression) is a lambda expression, or a function application matching the left hand pattern of some equation declaration in the current context.
 
 \end{document}
