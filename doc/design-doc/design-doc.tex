@@ -109,7 +109,7 @@ FreeCat is conceptually connected to abstract algebra and universal algebra. Fre
 
 Symbolic computation is another conceptual paradigm from which FreeCat is derived. A prototypical example of a symbolic computation system is Lisp. In Lisp, the most fundamental data structures are symbols and conses. These two simple data structures suffice for basic untyped symbolic computation. Typed symbolic computation languages include ML, Haskell, PureScript, and so forth. In these languages the notion of algebraic data types replaces the notions of symbols and conses.
 
-FreeCat is another typed symbolic computation language. The basic and only data structure is the (symbolic) expression. The simplest types of expressions are symbols and function applications. Instead of algebraic data types, users are given the ability to declare symbols to have arbitrary types. They can use this feature to declare types, values belonging to types, and constructors.
+FreeCat is another typed symbolic computation language. The basic and only data structure is the (symbolic) expression. The simplest types of expressions are symbols and function applications. Constructors are functions with no reduction rules. Instead of algebraic data types, users are given the ability to declare symbols to have arbitrary types. They can use this feature to declare types, values belonging to types, and constructors.
 
 \section{Basic Concepts}
 
