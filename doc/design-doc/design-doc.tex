@@ -127,11 +127,9 @@ A constructor is a function which has no pattern matching equations defined. Whe
 
 FreeCat expressions are evaluated following the rule of eager evaluation, where subexpressions of an expression are completely evaluated, left to right, before performing any evaluation step on the outermost expression. Pattern matching definitions are tried in the order they were declared, with the first match being used.
 
-Every expression is of a specific type. The type of an expression of a specific form will depend on the context. A symbol name, such as ``foo'' or ``Type,'' may denote different symbols in different contexts. As such, syntactically identical expressions may be semantically different expressions.
+Every expression has a type, which is intrinsic to it. The type is itself an expression, whose type is Type. The type of an expression of a specific form will depend on the context in which the expression originally occurs. A symbol name, such as ``foo'' or ``Type,'' may denote different symbols in different contexts. As such, syntactically identical expressions may be semantically different expressions.
 
 There is a function digestExpr of type $\text{Context} \to \text{RawExpr} \to \text{FreeCat Expr}$. (Here FreeCat denotes the FreeCat monad, which accounts for error handling and other issues.) A RawExpr or raw expression is the syntax of an expression without any contextual semantic interpretation applied to it. Given a context and a raw expression, digestExpr gives you an expression which is the interpretation of that raw expression in that context (or else it throws an error, etc.) This function, digestExpr, describes the one-to-many, context-dependent correspondence between syntactic or raw expressions, and semantic expressions, i.e. expressions.
-
-Every expression is of a specific type. The type is an intrinsic feature of the expression, given as part of the expression. The type is itself an expression, and it has its own type, which is always Type.
 
 There are the following kinds of expressions: symbols, applications, lambdas, and (dependent and non-dependent) function types.
 
@@ -139,7 +137,7 @@ A context can be represented as a sequence of declarations. There are the follow
 
 Type declarations assert that a given symbol has a given type. Whenever you have an expression denoting a type, you can declare a symbol to have that type, as long as you haven't previously declared a type for that symbol in the current context.
 
-Equation declarations, also called pattern matching definitions, assert that during evaluation, expressions following the left hand side pattern should be replaced by the right hand side expression. As usual, the right hand expression may be dependent on variables in the left hand pattern.
+Equation declarations, also called pattern matching definitions or reduction rules, assert that during evaluation, expressions following the left hand side pattern should be replaced by the right hand side expression. As usual, the right hand expression may be dependent on variables in the left hand pattern.
 
 Patterns are like expressions, but they're restricted to consist of symbols and applications. The first symbol in the pattern is called the lead symbol. An equation declaration's left hand pattern must have a lead symbol whose type has been declared previously.
 
@@ -151,7 +149,7 @@ TODO
 
 This section gives a rigorous mathematical definition of the semantics of FreeCat. Rigorous does not mean complete in all details. For something more like a complete definition of the semantics of FreeCat, see the code, and in particular the file src/FreeCat/Core.hs. The purpose of this section is to provide a higher-level, rigorous and semi-formal account of FreeCat's semantics, which abstracts away from a lot of the details the code handles.
 
-Semantics is the study of meaning. Whereas the syntax of FreeCat tells you what FreeCat expressions and declarations look like, the semantics of FreeCat tells you how to interpret FreeCat expressions and declarations. Specifically, it gives you a mathematical theory of how to interpret FreeCat expressions and declarations.
+Semantics is the study of meaning. Whereas the syntax of FreeCat tells you what FreeCat expressions and declarations look like, the semantics of FreeCat tells you how to interpret FreeCat expressions and declarations. Specifically, it gives you a mathematical, computer-implementable theory of how to interpret FreeCat expressions and declarations.
 
 A context in FreeCat is represented by a sequence of declarations: type declarations and equation declarations.
 
@@ -165,7 +163,7 @@ digestExpr has type $\text{Context} \to \text{RawExpr} \to \text{FreeCat Expr}$.
 
 evaluate has type $\text{Context} \to \text{Expr} \to \text{FreeCat Expr}$. It takes as input a context and an expression, and produces as output an expression. The output expression is produced from the input expression by repeating reducing all reducible subexpressions, in depth first left to right order, so that in the end there are no reducible subexpressions. A reducible subexpression is either a function application whose head (i.e., left-hand subexpression) is a lambda expression, or a function application matching the left hand pattern of some equation declaration in the current context.
 
-Let's now unpack the types Context and Expr. Both of these types involve the type Symbol, which we'll look at first. A symbol consists of the following data: its name (a string), its type (an Expr), its native context (a Context), and its evaluation context (a Context). The native context is the context in which the symbol's type was originally declared. The evaluation context is the context in which the symbol's equation declaration right hand side expressions should be evaluated. TODO: It should be possible for this to vary between equations.
+Let's now unpack the types Context and Expr. Both of these types involve the type Symbol, which we'll look at first. A symbol basically consists of the following data: its name (a string), its type (an Expr), its native context (the Context in which it first appeared), and its equations (a list of Equation objects representing equation declarations). Symbols are considered to be the same symbol when they have the same name and native context. However, different occurrences in different contexts of the same symbol may have different equations.
 
 TODO
 
