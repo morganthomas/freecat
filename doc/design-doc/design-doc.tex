@@ -49,21 +49,19 @@ Intuitionism is a subfield or paradigm of constructive math. Speaking generally 
 
 Constructive math does not necessarily restrict its attention to finite objects only. There are a wide variety of ways of understanding the notion of constructive math, and the widest variety is in the ways of understanding constructive math which assume that constructive math can study infinite things.
 
-The varieties of type theory which are most relevant to technology are constructive type theories. What it means for a type theory to be constructive is a subtle question to which many answers are possible. For purposes of intuition, I lean on the intuitionist notion of mental construction. Constructive type theory is only concerned with objects which can be mentally constructed to any desired degree of detail, as well as realized in computer implementations.
+The varieties of type theory which are most relevant to technology are constructive type theories. What it means for a type theory to be constructive is a subtle question to which many answers are possible. For purposes of intuition, I lean on the intuitionist notion of mental construction. Constructive type theory, I'll say, is only concerned with objects which can be mentally constructed to any desired degree of detail, as well as realized in computer implementations.
 
 Constructive type theory can talk about infinite things. For example, it can talk about the type of integers, and the type of functions from integers to integers.
 
-The real numbers are an example of something constructive type theory can’t talk about. There are uncountably many real numbers. If you had a computer with infinite memory and infinite computation time, such a computer could not represent and do arithmetic on all real numbers. That statement assumes the hypothetical infinite computer is built in something resembling a conventional manner: something like an infinitely large circuit board. Actual computers have only finite memory and computation time. Uncountably infinite sets like the real numbers are far beyond what actual computers can fathom. Therefore they are beyond the realm of constructive type theory as I’m conceiving it.
+The real numbers are an example of something constructive type theory can't talk about. There are uncountably many real numbers. If you had a computer with infinite memory and infinite computation time, such a computer could not represent and do arithmetic on all real numbers. That statement assumes the hypothetical infinite computer is built in something resembling a conventional manner: something like an infinitely large circuit board whose circuits are of uniform density. Actual computers have only finite memory and computation time. Uncountably infinite sets like the real numbers are far beyond what actual computers can fathom. Therefore they are beyond the realm of constructive type theory as I'm conceiving it.
 
-The only functions which are in the realm of constructive type theory as I’m conceiving it are partial μ-recursive functions, or other words functions which can be written in a regular pure functional programming language such as Haskell.
+The only functions which are in the realm of constructive type theory as I'm conceiving it are partial $\mu$-recursive functions, or other words functions which can be written in a regular pure functional programming language such as Haskell.
 
 \subsection{Inconsistent math}
 
 Inconsistent math is a fairly obscure and unpopular subfield of math, which I believe is mostly studied and practiced by philosophers. Inconsistent math refers to any style of math where contradictions can be true, or in other words where the same statement can be both true and false.
 
 Inconsistent math is unpopular probably in large part because most people assume that it is absurd and impossible for any statement (or at least any statement of math) to be both true and false. I have questioned this prevailing assumption in previous work, following other scholars including C.E. Mortensen, Mark Colyvan, Zach Weber, Graham Priest, Jc Beall, and David Ripley, to name a few.
-
-Inconsistent math has long been an interest of mine. I think inconsistent math is coherent, thinkable, workable, usable, and even useful. I’ll work to demonstrate that in this post.
 
 \subsection{Functional programming}
 
@@ -106,6 +104,12 @@ Abstract algebra is a field of math which (basically) studies mathematical objec
 Universal algebra is a field of math which tries to generalize the patterns of abstract algebra in the form of general theories of algebras and concepts which help in studying algebras.
 
 FreeCat is conceptually connected to abstract algebra and universal algebra. FreeCat provides a system for defining sets (types) and operations (functions) on them. FreeCat can be viewed as a general system for constructing algebras. As such, FreeCat provides a way of thinking about abstract/universal algebra, while abstract/universal algebra provides a way of thinking about FreeCat.
+
+\subsection{Symbolic computation}
+
+Symbolic computation is another conceptual paradigm from which FreeCat is derived. A prototypical example of a symbolic computation system is Lisp. In Lisp, the most fundamental data structures are symbols and conses. These two simple data structures suffice for basic untyped symbolic computation. Typed symbolic computation languages include ML, Haskell, PureScript, and so forth. In these languages the notion of algebraic data types replaces the notions of symbols and conses.
+
+FreeCat is another typed symbolic computation language. The basic and only data structure is the (symbolic) expression. The simplest types of expressions are symbols and function applications. Instead of algebraic data types, users are given the ability to declare symbols to have arbitrary types. They can use this feature to declare types, values belonging to types, and constructors.
 
 \section{Basic Concepts}
 
