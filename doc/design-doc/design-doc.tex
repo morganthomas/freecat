@@ -123,7 +123,7 @@ Functions are a fundamental class of object. A function maps objects of some typ
 
 Functions are defined by pattern matching equations. These equations express rules stating that expressions of given shapes can be replaced by other, dependent expressions. A function can have different equations defined for it in different contexts. A lambda expression can be thought of as having exactly one pattern matching equation.
 
-A constructor is a function which has no pattern matching equations defined. Whether a function is a constructor or not is dependent on the context.
+A constructor is a function which has no pattern matching equations defined. Whether a function is a constructor or not can be dependent on the context.
 
 FreeCat expressions are evaluated following the rule of eager evaluation, where subexpressions of an expression are completely evaluated, left to right, before performing any evaluation step on the outermost expression. Pattern matching definitions are tried in the order they were declared, with the first match being used.
 
