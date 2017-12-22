@@ -165,7 +165,7 @@ evaluate has type $\text{Context} \to \text{Expr} \to \text{FreeCat Expr}$. It t
 
 Let's now unpack the types Context and Expr. Both of these types involve the type Symbol, which we'll look at first. A symbol basically consists of the following data: its name (a string), its type (an Expr), its native context (the Context in which it first appeared), and its equations (a list of Equation objects representing equation declarations). Symbols are considered to be the same symbol when they have the same name and native context. However, different occurrences in different contexts of the same symbol may have different equations.
 
-An Equation is of the form $a_1 : t_1, ..., a_n : t_n. p \Rightarrow d$, where $a_1,...,a_n$ are symbols, $t_1,...,t_n$ are Expr of type Type, $p$ is a Pattern, and $d$ is an Expr.
+An Equation is of the form $a_1 : t_1, ..., a_n : t_n. p \Rightarrow d$, where $a_1,...,a_n$ are symbols, $t_1,...,t_n$ are Expr of type Type, $p$ is a Pattern, and $d$ is an Expr. Each Equation is associated with a Context, called its evaluation context.
 
 TODO
 
