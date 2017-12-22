@@ -35,6 +35,12 @@ This section gestures at some of the areas of thought which are closely related 
 
 TODO: sprinkle some citations
 
+\subsection{Symbolic computation}
+
+Symbolic computation is one conceptual paradigm from which FreeCat is derived. A prototypical example of a symbolic computation system is Lisp. In Lisp, the most fundamental data structures are symbols and conses. These two simple data structures suffice for basic untyped symbolic computation. Typed symbolic computation languages include ML, Haskell, PureScript, and so forth. In these languages the notion of algebraic data types replaces the notions of symbols and conses.
+
+FreeCat is another typed symbolic computation language. The basic and only data structure is the (symbolic) expression. The simplest types of expressions are symbols and function applications. Constructors are functions with no reduction rules. Instead of algebraic data types, users are given the ability to declare symbols to have arbitrary types. They can use this feature to declare types, values belonging to types, and constructors.
+
 \subsection{Type theory}
 
 Type theory is a field of math and a way of describing the foundations of math. Type theory is closely related to set theory. Set theory is the study of sets. Sets are collections of objects: e.g., the set of all even integers, the set of all unicorns, the set of all sets.
@@ -77,7 +83,7 @@ Functional programming languages can be classified as typed or untyped, dependin
 
 FreeCat is a pure typed functional programming language. This puts it in the same class as programming languages including Agda, Cayenne, Coq, Haskell, Idris, and PureScript.
 
-All of these languages are based on type theory. Type theory provides the underlying mathematical theories which are used to construct the languages mentioned in the previous paragraph. As far as I understand, in every case mentioned, the underlying type theories are constructive. This makes sense because constructive type theories can talk about what computers can talk about, whereas non-constructive type theories more or less by definition can talk about some things which computers can't talk about.
+All of these languages are based on type theory. Type theory provides the underlying mathematical theories which are used to construct the languages mentioned in the previous paragraph. As far as I understand, in every case mentioned, the underlying type theories are constructive. This makes sense because constructive type theories can talk about what computers can talk about, whereas non-constructive type theories more or less by definition (depending on your definition) can talk about some things which computers can't talk about.
 
 Most of the type theory literature is concerned with logically consistent type theories. A logically consistent type theory is one in which it is not possible to prove that the same statement is both true and false. To prove a statement is in other words to construct an inhabitant of the type which is the statement under the Curry-Howard correspondence.
 
@@ -108,12 +114,6 @@ Abstract algebra is a field of math which (basically) studies mathematical objec
 Universal algebra is a field of math which tries to generalize the patterns of abstract algebra in the form of general theories of algebras and concepts which help in studying algebras.
 
 FreeCat is conceptually connected to abstract algebra and universal algebra. FreeCat provides a system for defining sets (types) and operations (functions) on them. FreeCat can be viewed as a general system for constructing algebras. As such, FreeCat provides a way of thinking about abstract/universal algebra, while abstract/universal algebra provides a way of thinking about FreeCat.
-
-\subsection{Symbolic computation}
-
-Symbolic computation is another conceptual paradigm from which FreeCat is derived. A prototypical example of a symbolic computation system is Lisp. In Lisp, the most fundamental data structures are symbols and conses. These two simple data structures suffice for basic untyped symbolic computation. Typed symbolic computation languages include ML, Haskell, PureScript, and so forth. In these languages the notion of algebraic data types replaces the notions of symbols and conses.
-
-FreeCat is another typed symbolic computation language. The basic and only data structure is the (symbolic) expression. The simplest types of expressions are symbols and function applications. Constructors are functions with no reduction rules. Instead of algebraic data types, users are given the ability to declare symbols to have arbitrary types. They can use this feature to declare types, values belonging to types, and constructors.
 
 \section{Basic Concepts}
 
