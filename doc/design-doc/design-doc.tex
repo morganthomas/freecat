@@ -163,7 +163,9 @@ digestExpr has type $\text{Context} \to \text{RawExpr} \to \text{FreeCat Expr}$.
 
 evaluate has type $\text{Context} \to \text{Expr} \to \text{FreeCat Expr}$. It takes as input a context and an expression, and produces as output an expression. The output expression is produced from the input expression by repeating reducing all reducible subexpressions, in depth first left to right order, so that in the end there are no reducible subexpressions. A reducible subexpression is either a function application whose head (i.e., left-hand subexpression) is a lambda expression, or a function application matching the left hand pattern of some equation declaration in the current context.
 
-Let's now unpack the types Context and Expr. Both of these types involve the type Symbol, which we'll look at first. A symbol basically consists of the following data: its name (a string), its type (an Expr), its native context (the Context in which it first appeared), and its equations (a list of Equation objects representing equation declarations). Symbols are considered to be the same symbol when they have the same name and native context. However, different occurrences in different contexts of the same symbol may have different equations.
+Let's now unpack the types Context and Expr and related types. Both of these types involve the type Symbol, which we'll look at first.
+
+A Symbol basically consists of the following data: its name (a string), its type (an Expr), its native context (the Context in which it first appeared), and its equations (a list of Equation objects representing equation declarations). Symbols are considered to be the same symbol when they have the same name and native context. However, different occurrences in different contexts of the same symbol may have different equations.
 
 An Equation is of the form $a_1 : t_1, ..., a_n : t_n. p \Rightarrow d$, where $a_1,...,a_n$ are symbols, $t_1,...,t_n$ are Expr of type Type, $p$ is a Pattern, and $d$ is an Expr. Each Equation is associated with a Context, called its evaluation context.
 
