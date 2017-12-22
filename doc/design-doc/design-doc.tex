@@ -23,7 +23,7 @@ A further, related aim of this project is to describe a new approach to understa
 
 FreeCat doesn't aim to be the best approach to solving everybody's problem. For now the focus is on making it a good approach to solving some problems.
 
-The conception and justification of FreeCat is rooted in a holistic, interdisciplinary approach to analysis. This holistic methodology assumes that there are deep connections between fundamental problems in different technical disciplines. It assumes in essence that we can clarify our thinking about technical problems in general by developing theories which can systematize solutions to technical problems in general.
+The conception and justification of FreeCat is rooted in a holistic, interdisciplinary approach to technical analysis. This holistic methodology assumes that there are deep connections between fundamental problems in different technical disciplines. It assumes in essence that we can clarify our thinking about technical problems in general by developing theories which can systematize solutions to technical problems in general.
 
 This design document aims to give a self-contained conceptual explanation of FreeCat. The Context section is not self-contained. The other sections should explain FreeCat in a self-contained way which does not require understanding of the Context section. It's hard to state exact prerequisites for reading this document, but required prerequisites include some familiarity with functional programming and computer science concepts.
 
@@ -33,17 +33,21 @@ Prior experience in any of the following areas is helpful, but not required, for
 
 This section gestures at some of the areas of thought which are closely related to FreeCat. The main aim is to give an idea of where FreeCat's intellectual DNA comes from. For people familiar with these fields, hopefully it will help to contextualize FreeCat. None of this section is necessary for understanding FreeCat. It aims to provide perspectives which are useful for understanding FreeCat and its motivations.
 
+TODO: sprinkle some citations
+
 \subsection{Type theory}
 
 Type theory is a field of math and a way of describing the foundations of math. Type theory is closely related to set theory. Set theory is the study of sets. Sets are collections of objects: e.g., the set of all even integers, the set of all unicorns, the set of all sets.
 
 Type theory is basically a theoretical approach to studying sets, which can be distinguished from classical set theory. Classical set theory, as exemplified by ZFC, was originally motivated in essence by the desire to provide theoretical foundations for math. Type theory today is most interesting for its applications to technology. Many computer programming languages and software verification systems are based closely on type theory. Examples include Haskell, ML, Coq, Agda, and Idris. The demonstrated applicability of type theory to technology distinguishes it from classical set theory. The reason for the distinction is that type theory has been formulated in such a way that computers can feasibly process it.
 
-There are other interesting differences between type theory and classical set theory. In classical set theory, every object is an element of infinitely many sets, whereas in many versions of type theory (FreeCat included), every object is an element of at most one set (i.e. type). Also, classical set theory includes the principle of extensionality, which states that if two sets have exactly the same elements, then they are the same set. Type theory frequently does not include the principle of extensionality. In most computer implementations of type theory, the principle of extensionality is not included, or it's trivially true because no two distinct sets have any elements in common.
+There are other interesting differences between type theory and classical set theory. In classical set theory, every object is an element of infinitely many sets, whereas in many versions of type theory (FreeCat included), every object is an element of at most one set (i.e. type).
 
-Here is an important difference between type theory and classical set theory. Classical set theory is based on classical logic, most often first-order logic. The classical approach to logic and set theory defines logical rules of inference, such as those of first-order logic, and axioms about sets, such as those of ZFC. When combined they let you do math, once you've defined every mathematical concept in terms of sets. Type theory, on the other hand, simply defines rules for talking about types, and the rules of logic can be derived from these rules via the Curry-Howard isomorphism. Whereas classical set theory is founded on logic, type theory stands alone and can be used as a foundation for logic.
+Also, classical set theory includes the principle of extensionality, which states that if two sets have exactly the same elements, then they are the same set. Type theory frequently does not include the principle of extensionality. In most computer implementations of type theory, the principle of extensionality is not included, or it's trivially true because no two distinct sets have any elements in common.
 
-In short, type theory is a way of thinking about sets, which can form the basis of computer programming languages, which often relaxes the principle of extensionality, and which unifies logic with set theory via the Curry-Howard isomorphism.
+Here is a further important difference between type theory and classical set theory. Classical set theory is based on classical logic, most often first-order logic. The classical approach to logic and set theory defines logical rules of inference, such as those of first-order logic, and axioms about sets, such as those of ZFC. When combined they let you do math, once you've defined every mathematical concept in terms of sets. Type theory, on the other hand, simply defines rules for talking about types, and the rules of logic can be derived from these rules via the Curry-Howard isomorphism. Whereas classical set theory is founded on logic, type theory stands alone and can be used as a foundation for logic.
+
+In short, type theory is a way of thinking about sets, which can form the basis of computer programming languages, which often relaxes or trivializes the principle of extensionality, and which unifies logic with set theory via the Curry-Howard isomorphism.
 
 \subsection{Constructive math}
 
@@ -53,19 +57,15 @@ Intuitionism is a subfield or paradigm of constructive math. Speaking generally 
 
 Constructive math does not necessarily restrict its attention to finite objects only. There are a wide variety of ways of understanding the notion of constructive math, and the widest variety is in the ways of understanding constructive math which assume that constructive math can study infinite things.
 
-The varieties of type theory which are most relevant to technology are constructive type theories. What it means for a type theory to be constructive is a subtle question to which many answers are possible. For purposes of intuition, I lean on the intuitionist notion of mental construction. Constructive type theory, I'll say, is only concerned with objects which can be mentally constructed to any desired degree of detail, as well as realized in computer implementations.
-
-Constructive type theory can talk about infinite things. For example, it can talk about the type of integers, and the type of functions from integers to integers.
+The varieties of type theory which are most relevant to technology are constructive type theories. What it means for a type theory to be constructive is a subtle question to which many answers are possible. For purposes of intuition, I lean on the intuitionist notion of mental construction. Constructive type theory, I'll say, is only concerned with objects which can be mentally constructed to any desired degree of detail, as well as realized in computer implementations. Roughly, constructive type theory (conceived this way) can talk about finite objects, countably infinite types, and infinite objects which can be described by means of (partial) computable functions. For example, constructive type theory can talk about the type of integers, and the type of (partial computable) functions from integers to integers.
 
 The real numbers are an example of something constructive type theory can't talk about. There are uncountably many real numbers. If you had a computer with infinite memory and infinite computation time, such a computer could not represent and do arithmetic on all real numbers. That statement assumes the hypothetical infinite computer is built in something resembling a conventional manner: something like an infinitely large circuit board whose circuits are of uniform density. Actual computers have only finite memory and computation time. Uncountably infinite sets like the real numbers are far beyond what actual computers can fathom. Therefore they are beyond the realm of constructive type theory as I'm conceiving it.
 
-The only functions which are in the realm of constructive type theory as I'm conceiving it are partial $\mu$-recursive functions, or other words functions which can be written in a regular pure functional programming language such as Haskell.
-
 \subsection{Inconsistent math}
 
-Inconsistent math is a fairly obscure and unpopular subfield of math, which I believe is mostly studied and practiced by philosophers. Inconsistent math refers to any style of math where contradictions can be true, or in other words where the same statement can be both true and false.
+FreeCat is a system of inconsistent math. ``Inconsistent math'' refers to any style of math where contradictions can be true, or in other words where the same statement can be both true and false. Inconsistent math is a fairly obscure and unpopular subfield of math, which I believe is mostly studied and practiced by philosophers.
 
-Inconsistent math is unpopular probably in large part because most people assume that it is absurd and impossible for any statement (or at least any statement of math) to be both true and false. I have questioned this prevailing assumption in previous work, following other scholars including C.E. Mortensen, Mark Colyvan, Zach Weber, Graham Priest, Jc Beall, and David Ripley, to name a few.
+Inconsistent math is unpopular probably in large part because most people assume that it is absurd and impossible for any statement (or at least any statement of math) to be provably both true and false. FreeCat starts by rejecting that assumption, following other scholars including C.E. Mortensen, Mark Colyvan, Zach Weber, Graham Priest, Jc Beall, and David Ripley, to name a few.
 
 \subsection{Functional programming}
 
