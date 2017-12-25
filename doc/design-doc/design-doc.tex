@@ -15,6 +15,8 @@ FreeCat is a programming language, a system of logic and computer algebra, and a
 
 Programming languages to which FreeCat is similar include Haskell, PureScript, ML, Agda, Coq, Cayenne, and Idris. FreeCat follows a novel variant of a well-established type theory based approach to programming language design.
 
+What's novel (as far as I'm aware) about FreeCat is that it accepts the possibility of logical inconsistency, and it incorporates the assumption that logical inconsistency will be possible, starting from the design of the core type theory. In contrast, similar languages I'm aware of have mechanisms for ruling out inconsistency incorporated into the core type theory, even in cases where the final language is inconsistent. The motivation for designing FreeCat in this way is the hope that the resulting language will be significantly simpler and easier to understand, compared to alternatives.
+
 This document describes FreeCat from a theoretical perspective. There are two main target audiences. First, programming language theorists who want to understand FreeCat's theoretical contributions. Second, people who want to understand the implementation of FreeCat, for example in order to contribute to it.
 
 FreeCat is an open source, non-profit project whose primary aim is to give people a new way to develop software. The hope is that FreeCat will help people reduce their costs for developing software, while achieving higher quality.
