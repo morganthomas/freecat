@@ -85,61 +85,7 @@ type RawContext = [Positioned RawDeclaration]
 -- Basic semantic structures
 --
 
-data Context = Context {
-  contextId :: Integer,
-  uri :: Maybe String,
-  parentContext :: Maybe Context,
-  -- includes declarations from parent context
-  declarations :: Map.Map String Symbol,
-  importedSymbols :: Map.Map String Symbol
-}
-
-instance Show Context where
-  -- TODO: less consing
-  show c = Prelude.foldl (++) "" (Map.map showSymbolEquations (declarations c))
-
-showSymbolEquations :: Symbol -> String
-showSymbolEquations s = name s ++ " : " ++ show (definedType s) ++ "\n"
-  ++ (Prelude.foldl (++) "" $ Prelude.map (\d -> show d ++ "\n") (equations s))
-
-data Symbol = Symbol {
-  name :: String,
-  definedType :: Expr,
-  declarationSourcePos :: Maybe SourcePos,
-  -- all pattern equations have this symbol as their lead symbol
-  equations :: [Equation],
-  -- the context in which the symbol was originally defined
-  nativeContext :: Context
-}
-
-instance Eq Symbol where
-  s == t = name s == name t && nativeContext s == nativeContext t
-
-instance Show Symbol where
-  show = name
-
-data Equation = -- the Context is the evaluation context
-  Equation Context [VariableDeclaration] Pattern Expr (Maybe SourcePos)
-
-constantDefinition :: Symbol -> Expr -> Equation
-constantDefinition s e = Equation rootContext [] (SymbolExpr s (typeOf e) Nothing) e Nothing
-
-instance Show Equation where
-  show (Equation c decls pat e pos) =
-    "    " ++ showVariableDeclarationList decls
-    ++ show pat ++ " = " ++ show e
-
-data VariableDeclaration = VarDecl Symbol Expr
-
-instance Show VariableDeclaration where
-  show (VarDecl s e) = show s ++ " : " ++ show e
-
-showVariableDeclarationList :: [VariableDeclaration] -> String
-showVariableDeclarationList [] = ""
-showVariableDeclarationList (decl:decls) =
-  (Prelude.foldl joinByComma (show decl) (Prelude.map show decls)) ++ ". "
-  where joinByComma a b = a ++ ", " ++ b
-
+-- Patterns must be built using only SymbolExpr and AppExpr
 type Pattern = Expr
 
 data Expr =
@@ -153,6 +99,33 @@ data Expr =
  -- type is necessarily Type, so expression's type isn't included
  | FunctionTypeExpr Expr Expr (Maybe SourcePos)
  | DependentFunctionTypeExpr Symbol Expr Expr (Maybe SourcePos)
+
+data Context = Context {
+  contextId :: Integer,
+  uri :: Maybe String,
+  parentContext :: Maybe Context,
+  -- includes declarations from parent context
+  declarations :: Map.Map String Symbol,
+  importedSymbols :: Map.Map String Symbol
+}
+
+data Symbol = Symbol {
+  name :: String,
+  definedType :: Expr,
+  declarationSourcePos :: Maybe SourcePos,
+  -- all pattern equations have this symbol as their lead symbol
+  equations :: [Equation],
+  -- the context in which the symbol was originally defined
+  nativeContext :: Context
+}
+
+data Equation = -- the Context is the evaluation context
+  Equation Context [VariableDeclaration] Pattern Expr (Maybe SourcePos)
+
+data VariableDeclaration = VarDecl Symbol Expr
+
+constantDefinition :: Symbol -> Expr -> Equation
+constantDefinition s e = Equation rootContext [] (SymbolExpr s (typeOf e) Nothing) e Nothing
 
 rootTypeSymbol :: Symbol
 rootTypeSymbol =
@@ -177,33 +150,12 @@ rootContext =
    importedSymbols = Map.empty
  }
 
-instance Eq Expr where
-  (SymbolExpr s _ _) == (SymbolExpr t _ _) = s == t
-  (AppExpr a0 b0 _ _) == (AppExpr a1 b1 _ _) = a0 == a1 && b0 == b1
-  (LambdaExpr c0 s0 a0 b0 t0 _) == (LambdaExpr c1 s1 a1 b1 t1 _) =
-    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 a0 Nothing) b1)
-  (FunctionTypeExpr a0 b0 _) == (FunctionTypeExpr a1 b1 _) = a0 == a1 && b0 == b1
-  (DependentFunctionTypeExpr s0 a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
-    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 a0 Nothing) b1)
-  (FunctionTypeExpr a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
-    not (s1 `occursFreeIn` b1) && a0 == a1 && b0 == b1
-  (DependentFunctionTypeExpr s0 a0 b0 _) == (FunctionTypeExpr a1 b1 _) =
-    not (s0 `occursFreeIn` b0) && a0 == a1 && b0 == b1
-  _ == _ = False
-
 typeOf :: Expr -> Expr
 typeOf (SymbolExpr s t pos) = t
 typeOf (AppExpr a b t pos) = t
 typeOf (LambdaExpr c s a e t pos) = t
 typeOf (FunctionTypeExpr _ _ _) = typeOfTypes
 typeOf (DependentFunctionTypeExpr _ _ _ _) = typeOfTypes
-
-instance Show Expr where
-  show (SymbolExpr s t pos) = name s
-  show (AppExpr f g t pos) = "(" ++ show f ++ " " ++ show g ++ ")"
-  show (LambdaExpr c s t e lt pos) = "(\\" ++ name s ++ " : " ++ show t ++ " => " ++ show e ++ ")"
-  show (FunctionTypeExpr a b pos) = "(" ++ show a ++ " -> " ++ show b ++ ")"
-  show (DependentFunctionTypeExpr s a b pos) = "((" ++ name s ++ " : " ++ show a ++ ") -> " ++ show b ++ ")"
 
 -- Gathers the lead symbol in a normalized application expression.
 leadSymbol :: Expr -> FreeCat Symbol
@@ -218,9 +170,6 @@ lookupSymbol c s =
   case Map.lookup s (declarations c) of
     Just sym -> Just sym
     Nothing -> Map.lookup s (importedSymbols c)
-
-instance Eq Context where
-  c0 == c1 = contextId c0 == contextId c1
 
 -- Creates a new context which has the given context as parent and has a symbol
 -- with the given name, type, and equations.
@@ -250,6 +199,58 @@ _augmentContext parentContext vName vNativeContext vType pos equations contextId
           nativeContext = fromMaybe newContext vNativeContext
         }
     in newContext
+
+instance Eq Expr where
+  (SymbolExpr s _ _) == (SymbolExpr t _ _) = s == t
+  (AppExpr a0 b0 _ _) == (AppExpr a1 b1 _ _) = a0 == a1 && b0 == b1
+  (LambdaExpr c0 s0 a0 b0 t0 _) == (LambdaExpr c1 s1 a1 b1 t1 _) =
+    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 a0 Nothing) b1)
+  (FunctionTypeExpr a0 b0 _) == (FunctionTypeExpr a1 b1 _) = a0 == a1 && b0 == b1
+  (DependentFunctionTypeExpr s0 a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
+    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 a0 Nothing) b1)
+  (FunctionTypeExpr a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
+    not (s1 `occursFreeIn` b1) && a0 == a1 && b0 == b1
+  (DependentFunctionTypeExpr s0 a0 b0 _) == (FunctionTypeExpr a1 b1 _) =
+    not (s0 `occursFreeIn` b0) && a0 == a1 && b0 == b1
+  _ == _ = False
+
+instance Eq Symbol where
+  s == t = name s == name t && nativeContext s == nativeContext t
+
+instance Eq Context where
+  c0 == c1 = contextId c0 == contextId c1
+
+instance Show Context where
+  -- TODO: less consing
+  show c = Prelude.foldl (++) "" (Map.map showSymbolEquations (declarations c))
+
+showSymbolEquations :: Symbol -> String
+showSymbolEquations s = name s ++ " : " ++ show (definedType s) ++ "\n"
+  ++ (Prelude.foldl (++) "" $ Prelude.map (\d -> show d ++ "\n") (equations s))
+
+instance Show Symbol where
+  show = name
+
+instance Show Equation where
+  show (Equation c decls pat e pos) =
+    "    " ++ showVariableDeclarationList decls
+    ++ show pat ++ " = " ++ show e
+
+instance Show VariableDeclaration where
+  show (VarDecl s e) = show s ++ " : " ++ show e
+
+showVariableDeclarationList :: [VariableDeclaration] -> String
+showVariableDeclarationList [] = ""
+showVariableDeclarationList (decl:decls) =
+  (Prelude.foldl joinByComma (show decl) (Prelude.map show decls)) ++ ". "
+  where joinByComma a b = a ++ ", " ++ b
+
+instance Show Expr where
+  show (SymbolExpr s t pos) = name s
+  show (AppExpr f g t pos) = "(" ++ show f ++ " " ++ show g ++ ")"
+  show (LambdaExpr c s t e lt pos) = "(\\" ++ name s ++ " : " ++ show t ++ " => " ++ show e ++ ")"
+  show (FunctionTypeExpr a b pos) = "(" ++ show a ++ " -> " ++ show b ++ ")"
+  show (DependentFunctionTypeExpr s a b pos) = "((" ++ name s ++ " : " ++ show a ++ ") -> " ++ show b ++ ")"
 
 --
 -- FreeCat monadic meta-context
