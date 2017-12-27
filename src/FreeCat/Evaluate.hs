@@ -43,7 +43,7 @@ evaluate c e@(FunctionTypeExpr a b pos) =
      return (FunctionTypeExpr ae be pos)
 evaluate c e@(DependentFunctionTypeExpr s a b pos) = do
   c' <- augmentContext c (name s) Nothing a Nothing []
-  ae <- evaluate c' a
+  ae <- evaluate c a
   be <- evaluate c' b
   return (DependentFunctionTypeExpr s ae be pos)
 
