@@ -7,14 +7,8 @@
 module FreeCat.Digest where
 
 import Data.Map as Map
-import Data.Maybe (fromMaybe)
 import Control.Monad (mapM, foldM)
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.State
-import Control.Monad.Trans.Except as E
-import Control.Monad.IO.Class
 import Text.Parsec (SourcePos)
-
 import FreeCat.Core
 import FreeCat.Evaluate (evaluate)
 
