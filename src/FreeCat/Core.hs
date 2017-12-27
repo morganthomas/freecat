@@ -205,6 +205,14 @@ instance Show Expr where
   show (FunctionTypeExpr a b pos) = "(" ++ show a ++ " -> " ++ show b ++ ")"
   show (DependentFunctionTypeExpr s a b pos) = "((" ++ name s ++ " : " ++ show a ++ ") -> " ++ show b ++ ")"
 
+-- Gathers the lead symbol in a normalized application expression.
+leadSymbol :: Expr -> FreeCat Symbol
+leadSymbol (SymbolExpr s t pos) = return s
+leadSymbol (AppExpr e0 e1 t pos) = leadSymbol e0
+leadSymbol (LambdaExpr _ _ _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
+leadSymbol (FunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
+leadSymbol (DependentFunctionTypeExpr _ _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
+
 lookupSymbol :: Context -> String -> Maybe Symbol
 lookupSymbol c s =
   case Map.lookup s (declarations c) of
@@ -242,15 +250,6 @@ _augmentContext parentContext vName vNativeContext vType pos equations contextId
           nativeContext = fromMaybe newContext vNativeContext
         }
     in newContext
-
--- Gathers the lead symbol in a normalized application expression.
-leadSymbol :: Expr -> FreeCat Symbol
-leadSymbol (SymbolExpr s t pos) = return s
-leadSymbol (AppExpr e0 e1 t pos) = leadSymbol e0
-leadSymbol (LambdaExpr _ _ _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
-leadSymbol (FunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
-leadSymbol (DependentFunctionTypeExpr _ _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
-
 
 --
 -- FreeCat monadic meta-context
