@@ -146,7 +146,6 @@ addEvaluationContextToExpr ec (AppExpr f x pos) =
 addEvaluationContextToExpr ec (LambdaExpr c s t d pos) =
   let t' = addEvaluationContextToExpr ec t
       d' = addEvaluationContextToExpr ec d
-      -- TODO: pretty sure this context never gets used in eval. What do?
     in LambdaExpr ec s t' d' pos
 addEvaluationContextToExpr ec (FunctionTypeExpr a b pos) =
   let a' = addEvaluationContextToExpr ec a
