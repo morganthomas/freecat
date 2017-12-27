@@ -55,7 +55,7 @@ digestVarDecl cPat (RawTypeAssertion s _) =
 digestExpr :: Context -> RawExpr -> FreeCat (Expr, Expr)
 digestExpr c (RawSymbolExpr pos s) =
   case lookupSymbol c s of
-    Just sym -> return (SymbolExpr sym (definedType sym) (Just pos), definedType sym)
+    Just sym -> return (SymbolExpr sym (Just pos), definedType sym)
     Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
 digestExpr c (RawAppExpr pos e0 e1) =
   do (e0d, e0dType) <- digestExpr c e0
@@ -65,13 +65,13 @@ digestExpr c (RawAppExpr pos e0 e1) =
          do assertTypesMatch c e1d e1dType c e1d a
             return b
        DependentFunctionTypeExpr s a b pos ->
-         do assertTypesMatch c e1d e1dType c (SymbolExpr s a pos) a
+         do assertTypesMatch c e1d e1dType c (SymbolExpr s pos) a
             c' <- augmentContext c (name s) Nothing a Nothing
                     [constantDefinition s e1dType e1d]
             bEv <- evaluate c' b
             return bEv
        _ -> barf ErrAppHeadIsNotFunctionTyped
-     return ((AppExpr e0d e1d appType (Just pos)), appType)
+     return ((AppExpr e0d e1d (Just pos)), appType)
 digestExpr c (RawLambdaExpr pos s t d) =
   do (td, tdType) <- digestExpr c t
      assertTypesMatch c td tdType rootContext td typeOfTypes
@@ -79,7 +79,7 @@ digestExpr c (RawLambdaExpr pos s t d) =
      (dd, ddType) <- digestExpr c' d
      sym <- certainly (lookupSymbol c' s)
      let lt = (DependentFunctionTypeExpr sym td ddType (Just pos)) in
-       return (LambdaExpr c' sym td dd lt (Just pos), lt)
+       return (LambdaExpr c' sym td dd (Just pos), lt)
 digestExpr c (RawFunctionTypeExpr pos a b) =
   do (ad, adType) <- digestExpr c a
      assertTypesMatch c ad adType rootContext ad typeOfTypes
@@ -131,25 +131,23 @@ addEvaluationContextToSymbol ec s =
   }
 
 addEvaluationContextToExpr :: Context -> Expr -> Expr
-addEvaluationContextToExpr ec (SymbolExpr s t pos) =
+addEvaluationContextToExpr ec (SymbolExpr s pos) =
   let t' = addEvaluationContextToExpr ec t' in
     case Map.lookup (name s) (declarations ec) of
       Just s' ->
         if nativeContext s == nativeContext s'
-          then SymbolExpr s' t' pos
-          else SymbolExpr s t' pos
-      Nothing -> SymbolExpr s t' pos
-addEvaluationContextToExpr ec (AppExpr f x t pos) =
+          then SymbolExpr s' pos
+          else SymbolExpr s pos
+      Nothing -> SymbolExpr s pos
+addEvaluationContextToExpr ec (AppExpr f x pos) =
   let f' = addEvaluationContextToExpr ec f
       x' = addEvaluationContextToExpr ec x
-      t' = addEvaluationContextToExpr ec t
-    in AppExpr f' x' t' pos
-addEvaluationContextToExpr ec (LambdaExpr c s t d lt pos) =
+    in AppExpr f' x' pos
+addEvaluationContextToExpr ec (LambdaExpr c s t d pos) =
   let t' = addEvaluationContextToExpr ec t
       d' = addEvaluationContextToExpr ec d
-      lt' = addEvaluationContextToExpr ec lt
       -- TODO: pretty sure this context never gets used in eval. What do?
-    in LambdaExpr ec s t' d' lt' pos
+    in LambdaExpr ec s t' d' pos
 addEvaluationContextToExpr ec (FunctionTypeExpr a b pos) =
   let a' = addEvaluationContextToExpr ec a
       b' = addEvaluationContextToExpr ec b
@@ -160,21 +158,21 @@ addEvaluationContextToExpr ec (DependentFunctionTypeExpr s a b pos) =
     in DependentFunctionTypeExpr s a' b' pos
 
 addEvaluationContextToPattern :: Context -> Pattern -> Pattern
-addEvaluationContextToPattern ec (SymbolExpr s t pos) =
+addEvaluationContextToPattern ec (SymbolExpr s pos) =
   case Map.lookup (name s) (declarations ec) of
     Just s' ->
       if s == s' -- iff nativeContext s == nativeContext s', since we know name s == name s'
         then -- even though s == s', s' has the evaluation context added whereas s does not
-          SymbolExpr s' t pos
+          SymbolExpr s' pos
         else -- s' is some other symbol not declared in ec.
           -- this is right because we're not adding an evaluation context
           -- to symbols outside the evaluation context
-          SymbolExpr s t pos
-    Nothing -> SymbolExpr s t pos
-addEvaluationContextToPattern ec (AppExpr f x t pos) =
+          SymbolExpr s pos
+    Nothing -> SymbolExpr s pos
+addEvaluationContextToPattern ec (AppExpr f x pos) =
   let f' = addEvaluationContextToPattern ec f
       x' = addEvaluationContextToPattern ec x
-    in AppExpr f' x' t pos
+    in AppExpr f' x' pos
 
 addEvaluationContextToVariableDeclaration :: Context -> VariableDeclaration -> VariableDeclaration
 addEvaluationContextToVariableDeclaration ec (VarDecl s t) =

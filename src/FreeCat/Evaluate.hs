@@ -10,34 +10,33 @@ import Data.Map as Map
 import FreeCat.Core
 
 evaluate :: Context -> Expr -> FreeCat Expr
-evaluate c e@(SymbolExpr s t pos) = do
+evaluate c e@(SymbolExpr s pos) = do
   case lookupSymbol c (name s) of
     Nothing -> return e
     Just s' ->
       case equations s' of
-        (Equation c' [] (SymbolExpr _ _ _) e _ : _) -> evaluate c' e
-        _ -> return (SymbolExpr s (definedType s) pos)
-evaluate c e@(AppExpr e0 e1 t pos) =
+        (Equation c' [] (SymbolExpr _ _) e _ : _) -> evaluate c' e
+        _ -> return (SymbolExpr s pos)
+evaluate c e@(AppExpr e0 e1 pos) =
   do e0e <- evaluate c e0
      e1e <- evaluate c e1
-     te <- evaluate c t
      case e0e of
-      SymbolExpr s t pos ->
+      SymbolExpr s pos ->
         case lookupSymbol c (name s) of
-          Nothing -> return (AppExpr e0e e1e te pos)
-          Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e te pos)
-      AppExpr _ _ _ pos ->
+          Nothing -> return (AppExpr e0e e1e pos)
+          Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e pos)
+      AppExpr _ _ pos ->
         do s <- leadSymbol e0e
            case lookupSymbol c (name s) of
-             Nothing -> return (AppExpr e0e e1e te pos)
-             Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e te pos)
-      LambdaExpr c' s t d lt pos ->
+             Nothing -> return (AppExpr e0e e1e pos)
+             Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e pos)
+      LambdaExpr c' s t d pos ->
         do ec' <- augmentContext c' (name s) Nothing
               (definedType s) Nothing [constantDefinition s (definedType s) e1e]
            evaluate ec' d
       FunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ _ -> barf ErrFunctionTypeOnAppLHS
-evaluate c0 e@(LambdaExpr c1 s t d lt pos) = return e
+evaluate c0 e@(LambdaExpr c1 s t d pos) = return e
 evaluate c e@(FunctionTypeExpr a b pos) =
   do ae <- evaluate c a
      be <- evaluate c b
@@ -68,7 +67,7 @@ unifyExprWithPattern c0 e pat =
        Nothing -> return Nothing
 
 _unifyExprWithPattern :: (Context, Map String Expr) -> Expr -> Pattern -> FreeCat (Maybe (Context, Map String Expr))
-_unifyExprWithPattern (c, matches) e (SymbolExpr t _ _) =
+_unifyExprWithPattern (c, matches) e (SymbolExpr t _) =
   case Map.lookup (name t) matches of
     Just v ->
       -- temporarily allow anything for a duplicate pattern variable
@@ -80,7 +79,7 @@ _unifyExprWithPattern (c, matches) e (SymbolExpr t _ _) =
       case lookupSymbol c (name t) of
        Just s ->
         case e of
-          SymbolExpr u _ _ ->
+          SymbolExpr u _ ->
             if u == t
               then return (Just (c, matches))
               else return Nothing
@@ -89,7 +88,7 @@ _unifyExprWithPattern (c, matches) e (SymbolExpr t _ _) =
          c' <- augmentContext c (name t) Nothing (definedType t) Nothing
                 [constantDefinition t (definedType t) e]
          return (Just (c', Map.insert (name t) e matches))
-_unifyExprWithPattern (c0, matches0) (AppExpr e f _ _) (AppExpr p q _ _) =
+_unifyExprWithPattern (c0, matches0) (AppExpr e f _) (AppExpr p q _) =
   do unifyResult1 <- _unifyExprWithPattern (c0, matches0) e p
      case unifyResult1 of
        Nothing -> return Nothing

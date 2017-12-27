@@ -89,12 +89,11 @@ type Pattern = Expr
 
 data Expr =
  -- last argument of type Expr is the expression's type
-   SymbolExpr Symbol Expr (Maybe SourcePos)
- | AppExpr Expr Expr Expr (Maybe SourcePos)
+   SymbolExpr Symbol (Maybe SourcePos)
+ | AppExpr Expr Expr (Maybe SourcePos)
  -- Context is the evaluation context for the lambda body
- -- Expr arguments are (in order) the variable type, the definition, and the
- -- type of the whole lambda expr
- | LambdaExpr Context Symbol Expr Expr Expr (Maybe SourcePos)
+ -- Expr arguments are (in order) the variable type, the definition
+ | LambdaExpr Context Symbol Expr Expr (Maybe SourcePos)
  -- type is necessarily Type, so expression's type isn't included
  | FunctionTypeExpr Expr Expr (Maybe SourcePos)
  | DependentFunctionTypeExpr Symbol Expr Expr (Maybe SourcePos)
@@ -124,7 +123,7 @@ data Equation = -- the Context is the evaluation context
 data VariableDeclaration = VarDecl Symbol Expr
 
 constantDefinition :: Symbol -> Expr -> Expr -> Equation
-constantDefinition s t e = Equation rootContext [] (SymbolExpr s t Nothing) e Nothing
+constantDefinition s t e = Equation rootContext [] (SymbolExpr s Nothing) e Nothing
 
 rootTypeSymbol :: Symbol
 rootTypeSymbol =
@@ -137,7 +136,7 @@ rootTypeSymbol =
  }
 
 typeOfTypes :: Expr
-typeOfTypes = SymbolExpr rootTypeSymbol typeOfTypes Nothing
+typeOfTypes = SymbolExpr rootTypeSymbol Nothing
 
 rootContext :: Context
 rootContext =
@@ -151,9 +150,9 @@ rootContext =
 
 -- Gathers the lead symbol in a normalized application expression.
 leadSymbol :: Expr -> FreeCat Symbol
-leadSymbol (SymbolExpr s t pos) = return s
-leadSymbol (AppExpr e0 e1 t pos) = leadSymbol e0
-leadSymbol (LambdaExpr _ _ _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
+leadSymbol (SymbolExpr s pos) = return s
+leadSymbol (AppExpr e0 e1 pos) = leadSymbol e0
+leadSymbol (LambdaExpr _ _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
 leadSymbol (FunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
 leadSymbol (DependentFunctionTypeExpr _ _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
 
@@ -193,13 +192,13 @@ _augmentContext parentContext vName vNativeContext vType pos equations contextId
     in newContext
 
 instance Eq Expr where
-  (SymbolExpr s _ _) == (SymbolExpr t _ _) = s == t
-  (AppExpr a0 b0 _ _) == (AppExpr a1 b1 _ _) = a0 == a1 && b0 == b1
-  (LambdaExpr c0 s0 a0 b0 t0 _) == (LambdaExpr c1 s1 a1 b1 t1 _) =
-    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 a0 Nothing) b1)
+  (SymbolExpr s _) == (SymbolExpr t _) = s == t
+  (AppExpr a0 b0 _) == (AppExpr a1 b1 _) = a0 == a1 && b0 == b1
+  (LambdaExpr c0 s0 a0 b0 _) == (LambdaExpr c1 s1 a1 b1 _) =
+    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
   (FunctionTypeExpr a0 b0 _) == (FunctionTypeExpr a1 b1 _) = a0 == a1 && b0 == b1
   (DependentFunctionTypeExpr s0 a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
-    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 a0 Nothing) b1)
+    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
   (FunctionTypeExpr a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
     not (s1 `occursFreeIn` b1) && a0 == a1 && b0 == b1
   (DependentFunctionTypeExpr s0 a0 b0 _) == (FunctionTypeExpr a1 b1 _) =
@@ -238,9 +237,9 @@ showVariableDeclarationList (decl:decls) =
   where joinByComma a b = a ++ ", " ++ b
 
 instance Show Expr where
-  show (SymbolExpr s t pos) = name s
-  show (AppExpr f g t pos) = "(" ++ show f ++ " " ++ show g ++ ")"
-  show (LambdaExpr c s t e lt pos) = "(\\" ++ name s ++ " : " ++ show t ++ " => " ++ show e ++ ")"
+  show (SymbolExpr s pos) = name s
+  show (AppExpr f g pos) = "(" ++ show f ++ " " ++ show g ++ ")"
+  show (LambdaExpr c s t e pos) = "(\\" ++ name s ++ " : " ++ show t ++ " => " ++ show e ++ ")"
   show (FunctionTypeExpr a b pos) = "(" ++ show a ++ " -> " ++ show b ++ ")"
   show (DependentFunctionTypeExpr s a b pos) = "((" ++ name s ++ " : " ++ show a ++ ") -> " ++ show b ++ ")"
 
@@ -296,18 +295,16 @@ certainly Nothing = barf ErrIThoughtThisWasImpossible
 
 -- Replaces all free instances of a symbol with an expr in an expr
 substitute :: Symbol -> Expr -> Expr -> Expr
-substitute s v e@(SymbolExpr s' t pos) =
+substitute s v e@(SymbolExpr s' pos) =
   if s' == s
     then v
     else e
-substitute s v (AppExpr a b t pos) =
-  -- TODO: is this correct for t?
-  AppExpr (substitute s v a) (substitute s v b) (substitute s v t) Nothing
-substitute s v e@(LambdaExpr c s' t d lt pos) =
-  -- TODO: is this correct for lt?
+substitute s v (AppExpr a b pos) =
+  AppExpr (substitute s v a) (substitute s v b) Nothing
+substitute s v e@(LambdaExpr c s' t d pos) =
   if s == s'
-    then LambdaExpr c s' (substitute s v t) d (substitute s v lt) Nothing
-    else LambdaExpr c s' (substitute s v t) (substitute s v d) (substitute s v lt) Nothing
+    then LambdaExpr c s' (substitute s v t) d Nothing
+    else LambdaExpr c s' (substitute s v t) (substitute s v d) Nothing
 substitute s v (FunctionTypeExpr a b pos) =
   FunctionTypeExpr (substitute s v a) (substitute s v b) pos
 substitute s v e@(DependentFunctionTypeExpr s' a b pos) =
@@ -317,9 +314,9 @@ substitute s v e@(DependentFunctionTypeExpr s' a b pos) =
 
 -- returns true if the given symbol occurs free in the given expr
 occursFreeIn :: Symbol -> Expr -> Bool
-s `occursFreeIn` (SymbolExpr s' _ _) = s == s'
-s `occursFreeIn` (AppExpr a b _ _) = s `occursFreeIn` a || s `occursFreeIn` b
-s `occursFreeIn` (LambdaExpr c s' t e _ _) =
+s `occursFreeIn` (SymbolExpr s' _) = s == s'
+s `occursFreeIn` (AppExpr a b _) = s `occursFreeIn` a || s `occursFreeIn` b
+s `occursFreeIn` (LambdaExpr c s' t e _) =
   s `occursFreeIn` t
   || (s /= s' && occursFreeIn s e)
 s `occursFreeIn` (FunctionTypeExpr a b _) = s `occursFreeIn` a || s `occursFreeIn` b
