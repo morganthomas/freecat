@@ -319,7 +319,7 @@ substitute s v (FunctionTypeExpr a b pos) =
   FunctionTypeExpr (substitute s v a) (substitute s v b) pos
 substitute s v e@(DependentFunctionTypeExpr s' a b pos) =
   if s == s'
-    then e
+    then DependentFunctionTypeExpr s' (substitute s v a) b Nothing
     else DependentFunctionTypeExpr s' (substitute s v a) (substitute s v b) Nothing
 
 -- returns true if the given symbol occurs free in the given expr
