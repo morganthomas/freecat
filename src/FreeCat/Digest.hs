@@ -67,7 +67,7 @@ digestExpr c (RawAppExpr pos e0 e1) =
        DependentFunctionTypeExpr s a b pos ->
          do assertTypesMatch c e1d e1dType c (SymbolExpr s a pos) a
             c' <- augmentContext c (name s) Nothing a Nothing
-                    [constantDefinition s e1d]
+                    [constantDefinition s e1dType e1d]
             bEv <- evaluate c' b
             return bEv
        _ -> barf ErrAppHeadIsNotFunctionTyped

@@ -33,7 +33,7 @@ evaluate c e@(AppExpr e0 e1 t pos) =
              Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e te pos)
       LambdaExpr c' s t d lt pos ->
         do ec' <- augmentContext c' (name s) Nothing
-              (definedType s) Nothing [constantDefinition s e1e]
+              (definedType s) Nothing [constantDefinition s (definedType s) e1e]
            evaluate ec' d
       FunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ _ -> barf ErrFunctionTypeOnAppLHS
@@ -87,7 +87,7 @@ _unifyExprWithPattern (c, matches) e (SymbolExpr t _ _) =
           _ -> return Nothing
        Nothing -> do
          c' <- augmentContext c (name t) Nothing (definedType t) Nothing
-                [constantDefinition t e]
+                [constantDefinition t (definedType t) e]
          return (Just (c', Map.insert (name t) e matches))
 _unifyExprWithPattern (c0, matches0) (AppExpr e f _ _) (AppExpr p q _ _) =
   do unifyResult1 <- _unifyExprWithPattern (c0, matches0) e p

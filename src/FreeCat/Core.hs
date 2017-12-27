@@ -123,8 +123,8 @@ data Equation = -- the Context is the evaluation context
 
 data VariableDeclaration = VarDecl Symbol Expr
 
-constantDefinition :: Symbol -> Expr -> Equation
-constantDefinition s e = Equation rootContext [] (SymbolExpr s (typeOf e) Nothing) e Nothing
+constantDefinition :: Symbol -> Expr -> Expr -> Equation
+constantDefinition s t e = Equation rootContext [] (SymbolExpr s t Nothing) e Nothing
 
 rootTypeSymbol :: Symbol
 rootTypeSymbol =
@@ -148,13 +148,6 @@ rootContext =
    declarations = Map.singleton rawTypeSymbol rootTypeSymbol,
    importedSymbols = Map.empty
  }
-
-typeOf :: Expr -> Expr
-typeOf (SymbolExpr s t pos) = t
-typeOf (AppExpr a b t pos) = t
-typeOf (LambdaExpr c s a e t pos) = t
-typeOf (FunctionTypeExpr _ _ _) = typeOfTypes
-typeOf (DependentFunctionTypeExpr _ _ _ _) = typeOfTypes
 
 -- Gathers the lead symbol in a normalized application expression.
 leadSymbol :: Expr -> FreeCat Symbol
