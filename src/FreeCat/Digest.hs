@@ -104,7 +104,7 @@ assertTypesMatch c0 e0 t0 c1 e1 t1 =
      -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
      if t0ev == t1ev
        then return ()
-       else debug ("Type mismatch! " ++ show (ErrTypeMismatch c0 e0 t0ev c1 e1 t1ev))
+       else barf (ErrTypeMismatch c0 e0 t0ev c1 e1 t1ev)
 
 completeContext :: Context -> FreeCat Context
 completeContext c =
