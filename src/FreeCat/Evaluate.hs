@@ -41,7 +41,11 @@ evaluate c e@(FunctionTypeExpr a b pos) =
   do ae <- evaluate c a
      be <- evaluate c b
      return (FunctionTypeExpr ae be pos)
-evaluate c e@(DependentFunctionTypeExpr s a b pos) = return e
+evaluate c e@(DependentFunctionTypeExpr s a b pos) = do
+  c' <- augmentContext c (name s) Nothing a Nothing []
+  ae <- evaluate c' a
+  be <- evaluate c' b
+  return (DependentFunctionTypeExpr s ae be pos)
 
 -- Checks if the given expr matches any of the given pattern match equations.
 -- Returns the result of evaluating the expr against the first matching definition
