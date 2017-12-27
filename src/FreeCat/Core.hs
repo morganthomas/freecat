@@ -311,9 +311,9 @@ substitute s v (AppExpr a b t pos) =
   -- TODO: is this correct for t?
   AppExpr (substitute s v a) (substitute s v b) (substitute s v t) Nothing
 substitute s v e@(LambdaExpr c s' t d lt pos) =
+  -- TODO: is this correct for lt?
   if s == s'
-    then e
-    -- TODO: is this correct for lt?
+    then LambdaExpr c s' (substitute s v t) d (substitute s v lt) Nothing
     else LambdaExpr c s' (substitute s v t) (substitute s v d) (substitute s v lt) Nothing
 substitute s v (FunctionTypeExpr a b pos) =
   FunctionTypeExpr (substitute s v a) (substitute s v b) pos
