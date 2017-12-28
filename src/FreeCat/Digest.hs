@@ -79,7 +79,7 @@ digestExpr c (RawLambdaExpr pos s t d) =
      (dd, ddType) <- digestExpr c' d
      sym <- certainly (lookupSymbol c' s)
      let lt = (DependentFunctionTypeExpr sym td ddType (Just pos)) in
-       return (LambdaExpr c' sym td dd (Just pos), lt)
+       return (LambdaExpr c' sym dd (Just pos), lt)
 digestExpr c (RawFunctionTypeExpr pos a b) =
   do (ad, adType) <- digestExpr c a
      assertTypesMatch c ad adType rootContext ad typeOfTypes
@@ -132,21 +132,20 @@ addEvaluationContextToSymbol ec s =
 
 addEvaluationContextToExpr :: Context -> Expr -> Expr
 addEvaluationContextToExpr ec (SymbolExpr s pos) =
-  let t' = addEvaluationContextToExpr ec t' in
-    case Map.lookup (name s) (declarations ec) of
-      Just s' ->
-        if nativeContext s == nativeContext s'
-          then SymbolExpr s' pos
-          else SymbolExpr s pos
-      Nothing -> SymbolExpr s pos
+  case Map.lookup (name s) (declarations ec) of
+    Just s' ->
+      if nativeContext s == nativeContext s'
+        then SymbolExpr s' pos
+        else SymbolExpr s pos
+    Nothing -> SymbolExpr s pos
 addEvaluationContextToExpr ec (AppExpr f x pos) =
   let f' = addEvaluationContextToExpr ec f
       x' = addEvaluationContextToExpr ec x
     in AppExpr f' x' pos
-addEvaluationContextToExpr ec (LambdaExpr c s t d pos) =
-  let t' = addEvaluationContextToExpr ec t
+addEvaluationContextToExpr ec (LambdaExpr c s d pos) =
+  let s' = s { definedType = addEvaluationContextToExpr ec (definedType s) }
       d' = addEvaluationContextToExpr ec d
-    in LambdaExpr ec s t' d' pos
+    in LambdaExpr ec s' d' pos
 addEvaluationContextToExpr ec (FunctionTypeExpr a b pos) =
   let a' = addEvaluationContextToExpr ec a
       b' = addEvaluationContextToExpr ec b

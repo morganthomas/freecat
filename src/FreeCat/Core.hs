@@ -92,8 +92,7 @@ data Expr =
    SymbolExpr Symbol (Maybe SourcePos)
  | AppExpr Expr Expr (Maybe SourcePos)
  -- Context is the evaluation context for the lambda body
- -- Expr arguments are (in order) the variable type, the definition
- | LambdaExpr Context Symbol Expr Expr (Maybe SourcePos)
+ | LambdaExpr Context Symbol Expr (Maybe SourcePos)
  -- type is necessarily Type, so expression's type isn't included
  | FunctionTypeExpr Expr Expr (Maybe SourcePos)
  | DependentFunctionTypeExpr Symbol Expr Expr (Maybe SourcePos)
@@ -152,7 +151,7 @@ rootContext =
 leadSymbol :: Expr -> FreeCat Symbol
 leadSymbol (SymbolExpr s pos) = return s
 leadSymbol (AppExpr e0 e1 pos) = leadSymbol e0
-leadSymbol (LambdaExpr _ _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
+leadSymbol (LambdaExpr _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
 leadSymbol (FunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
 leadSymbol (DependentFunctionTypeExpr _ _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
 
@@ -194,8 +193,9 @@ _augmentContext parentContext vName vNativeContext vType pos equations contextId
 instance Eq Expr where
   (SymbolExpr s _) == (SymbolExpr t _) = s == t
   (AppExpr a0 b0 _) == (AppExpr a1 b1 _) = a0 == a1 && b0 == b1
-  (LambdaExpr c0 s0 a0 b0 _) == (LambdaExpr c1 s1 a1 b1 _) =
-    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
+  (LambdaExpr c0 s0 b0 _) == (LambdaExpr c1 s1 b1 _) =
+    -- alpha convertible lambdas are equal
+    (definedType s0) == (definedType s1) && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
   (FunctionTypeExpr a0 b0 _) == (FunctionTypeExpr a1 b1 _) = a0 == a1 && b0 == b1
   (DependentFunctionTypeExpr s0 a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
     a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
@@ -239,7 +239,7 @@ showVariableDeclarationList (decl:decls) =
 instance Show Expr where
   show (SymbolExpr s pos) = name s
   show (AppExpr f g pos) = "(" ++ show f ++ " " ++ show g ++ ")"
-  show (LambdaExpr c s t e pos) = "(\\" ++ name s ++ " : " ++ show t ++ " => " ++ show e ++ ")"
+  show (LambdaExpr c s e pos) = "(\\" ++ name s ++ " : " ++ show (definedType s) ++ " => " ++ show e ++ ")"
   show (FunctionTypeExpr a b pos) = "(" ++ show a ++ " -> " ++ show b ++ ")"
   show (DependentFunctionTypeExpr s a b pos) = "((" ++ name s ++ " : " ++ show a ++ ") -> " ++ show b ++ ")"
 
@@ -301,10 +301,10 @@ substitute s v e@(SymbolExpr s' pos) =
     else e
 substitute s v (AppExpr a b pos) =
   AppExpr (substitute s v a) (substitute s v b) Nothing
-substitute s v e@(LambdaExpr c s' t d pos) =
+substitute s v e@(LambdaExpr c s' d pos) =
   if s == s'
-    then LambdaExpr c s' (substitute s v t) d Nothing
-    else LambdaExpr c s' (substitute s v t) (substitute s v d) Nothing
+    then LambdaExpr c (s' { definedType = substitute s v (definedType s') }) d Nothing
+    else LambdaExpr c (s' { definedType = substitute s v (definedType s') }) (substitute s v d) Nothing
 substitute s v (FunctionTypeExpr a b pos) =
   FunctionTypeExpr (substitute s v a) (substitute s v b) pos
 substitute s v e@(DependentFunctionTypeExpr s' a b pos) =
@@ -316,8 +316,8 @@ substitute s v e@(DependentFunctionTypeExpr s' a b pos) =
 occursFreeIn :: Symbol -> Expr -> Bool
 s `occursFreeIn` (SymbolExpr s' _) = s == s'
 s `occursFreeIn` (AppExpr a b _) = s `occursFreeIn` a || s `occursFreeIn` b
-s `occursFreeIn` (LambdaExpr c s' t e _) =
-  s `occursFreeIn` t
+s `occursFreeIn` (LambdaExpr c s' e _) =
+  s `occursFreeIn` (definedType s')
   || (s /= s' && occursFreeIn s e)
 s `occursFreeIn` (FunctionTypeExpr a b _) = s `occursFreeIn` a || s `occursFreeIn` b
 s `occursFreeIn` (DependentFunctionTypeExpr s' a b _) =

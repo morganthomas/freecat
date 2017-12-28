@@ -30,13 +30,13 @@ evaluate c e@(AppExpr e0 e1 pos) =
            case lookupSymbol c (name s) of
              Nothing -> return (AppExpr e0e e1e pos)
              Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e pos)
-      LambdaExpr c' s t d pos ->
+      LambdaExpr c' s d pos ->
         do ec' <- augmentContext c' (name s) Nothing
               (definedType s) Nothing [constantDefinition s (definedType s) e1e]
            evaluate ec' d
       FunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ _ -> barf ErrFunctionTypeOnAppLHS
-evaluate c0 e@(LambdaExpr c1 s t d pos) = return e
+evaluate c0 e@(LambdaExpr c1 s d pos) = return e
 evaluate c e@(FunctionTypeExpr a b pos) =
   do ae <- evaluate c a
      be <- evaluate c b
