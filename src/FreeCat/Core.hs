@@ -12,8 +12,6 @@ import Control.Monad.Trans.Except as E
 import Control.Monad.IO.Class
 import Text.Parsec (SourcePos)
 
-type Positioned a = (a, SourcePos)
-
 --
 -- Errors
 --
