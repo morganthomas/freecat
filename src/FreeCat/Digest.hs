@@ -95,8 +95,7 @@ digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
      assertTypesMatch c' bd bdType rootContext bd typeOfTypes
      return (DependentFunctionTypeExpr sym bd (Just pos), typeOfTypes)
 
--- Throws an error unless the two exprs match as types. For now this
--- simply means their normal forms are syntactically equal.
+-- Throws an error unless the two exprs match as types.
 assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
 assertTypesMatch c0 e0 t0 c1 e1 t1 =
   do t0ev <- evaluate c0 t0
