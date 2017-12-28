@@ -101,7 +101,6 @@ assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCa
 assertTypesMatch c0 e0 t0 c1 e1 t1 =
   do t0ev <- evaluate c0 t0
      t1ev <- evaluate c1 t1
-     -- TODO: use a looser equivalence notion than == (alpha-convertibility?)
      if t0ev == t1ev
        then return ()
        else barf (ErrTypeMismatch c0 e0 t0ev c1 e1 t1ev)
