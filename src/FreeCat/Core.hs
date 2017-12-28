@@ -74,11 +74,11 @@ data RawImport =
  | RawImportSelectively String [String] -- uri, symbols to import
 
 data RawDeclaration =
-   RawTypeDeclaration RawTypeAssertion
- | RawEquationDeclaration RawEquation
- | RawImportDeclaration RawImport
+   RawTypeDeclaration SourcePos RawTypeAssertion
+ | RawEquationDeclaration SourcePos RawEquation
+ | RawImportDeclaration SourcePos RawImport
 
-type RawContext = [Positioned RawDeclaration]
+type RawContext = [RawDeclaration]
 
 --
 -- Basic semantic structures
