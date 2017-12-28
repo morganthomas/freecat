@@ -46,9 +46,7 @@ digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
 -- cPat is assumed to contain a declaration generated from this type
 -- assertion via digestTypeAssertion
 digestVarDecl :: Context -> RawTypeAssertion -> FreeCat VariableDeclaration
-digestVarDecl cPat (RawTypeAssertion s _) =
-  do sym <- certainly (lookupSymbol cPat s)
-     return sym
+digestVarDecl cPat (RawTypeAssertion s _) = certainly (lookupSymbol cPat s)
 
 -- Assumes all symbols used in RawExpr are defined in Context.
 -- Returns a pair of the digested expr and its inferred type.
