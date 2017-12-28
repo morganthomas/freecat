@@ -93,9 +93,8 @@ data Expr =
  | AppExpr Expr Expr (Maybe SourcePos)
  -- Context is the evaluation context for the lambda body
  | LambdaExpr Context Symbol Expr (Maybe SourcePos)
- -- type is necessarily Type, so expression's type isn't included
  | FunctionTypeExpr Expr Expr (Maybe SourcePos)
- | DependentFunctionTypeExpr Symbol Expr Expr (Maybe SourcePos)
+ | DependentFunctionTypeExpr Symbol Expr (Maybe SourcePos)
 
 data Context = Context {
   contextId :: Integer,
@@ -153,7 +152,7 @@ leadSymbol (SymbolExpr s pos) = return s
 leadSymbol (AppExpr e0 e1 pos) = leadSymbol e0
 leadSymbol (LambdaExpr _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
 leadSymbol (FunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
-leadSymbol (DependentFunctionTypeExpr _ _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
+leadSymbol (DependentFunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
 
 lookupSymbol :: Context -> String -> Maybe Symbol
 lookupSymbol c s =
@@ -197,12 +196,13 @@ instance Eq Expr where
     -- alpha convertible lambdas are equal
     (definedType s0) == (definedType s1) && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
   (FunctionTypeExpr a0 b0 _) == (FunctionTypeExpr a1 b1 _) = a0 == a1 && b0 == b1
-  (DependentFunctionTypeExpr s0 a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
-    a0 == a1 && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
-  (FunctionTypeExpr a0 b0 _) == (DependentFunctionTypeExpr s1 a1 b1 _) =
-    not (s1 `occursFreeIn` b1) && a0 == a1 && b0 == b1
-  (DependentFunctionTypeExpr s0 a0 b0 _) == (FunctionTypeExpr a1 b1 _) =
-    not (s0 `occursFreeIn` b0) && a0 == a1 && b0 == b1
+  (DependentFunctionTypeExpr s0 b0 _) == (DependentFunctionTypeExpr s1 b1 _) =
+    -- alpha convertible ones are equal
+    (definedType s0) == (definedType s1) && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
+  (FunctionTypeExpr a0 b0 _) == (DependentFunctionTypeExpr s1 b1 _) =
+    not (s1 `occursFreeIn` b1) && a0 == (definedType s1) && b0 == b1
+  (DependentFunctionTypeExpr s0 b0 _) == (FunctionTypeExpr a1 b1 _) =
+    not (s0 `occursFreeIn` b0) && (definedType s0) == a1 && b0 == b1
   _ == _ = False
 
 instance Eq Symbol where
@@ -241,7 +241,7 @@ instance Show Expr where
   show (AppExpr f g pos) = "(" ++ show f ++ " " ++ show g ++ ")"
   show (LambdaExpr c s e pos) = "(\\" ++ name s ++ " : " ++ show (definedType s) ++ " => " ++ show e ++ ")"
   show (FunctionTypeExpr a b pos) = "(" ++ show a ++ " -> " ++ show b ++ ")"
-  show (DependentFunctionTypeExpr s a b pos) = "((" ++ name s ++ " : " ++ show a ++ ") -> " ++ show b ++ ")"
+  show (DependentFunctionTypeExpr s b pos) = "((" ++ name s ++ " : " ++ show (definedType s) ++ ") -> " ++ show b ++ ")"
 
 --
 -- FreeCat monadic meta-context
@@ -307,10 +307,10 @@ substitute s v e@(LambdaExpr c s' d pos) =
     else LambdaExpr c (s' { definedType = substitute s v (definedType s') }) (substitute s v d) Nothing
 substitute s v (FunctionTypeExpr a b pos) =
   FunctionTypeExpr (substitute s v a) (substitute s v b) pos
-substitute s v e@(DependentFunctionTypeExpr s' a b pos) =
+substitute s v e@(DependentFunctionTypeExpr s' b pos) =
   if s == s'
-    then DependentFunctionTypeExpr s' (substitute s v a) b Nothing
-    else DependentFunctionTypeExpr s' (substitute s v a) (substitute s v b) Nothing
+    then DependentFunctionTypeExpr (s' { definedType = substitute s v (definedType s') }) b Nothing
+    else DependentFunctionTypeExpr (s' { definedType = substitute s v (definedType s') }) (substitute s v b) Nothing
 
 -- returns true if the given symbol occurs free in the given expr
 occursFreeIn :: Symbol -> Expr -> Bool
@@ -320,6 +320,6 @@ s `occursFreeIn` (LambdaExpr c s' e _) =
   s `occursFreeIn` (definedType s')
   || (s /= s' && occursFreeIn s e)
 s `occursFreeIn` (FunctionTypeExpr a b _) = s `occursFreeIn` a || s `occursFreeIn` b
-s `occursFreeIn` (DependentFunctionTypeExpr s' a b _) =
-  s `occursFreeIn` a
+s `occursFreeIn` (DependentFunctionTypeExpr s' b _) =
+  s `occursFreeIn` (definedType s')
   || (s /= s' && s `occursFreeIn` b)

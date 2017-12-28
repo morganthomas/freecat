@@ -64,9 +64,9 @@ digestExpr c (RawAppExpr pos e0 e1) =
        FunctionTypeExpr a b pos ->
          do assertTypesMatch c e1d e1dType c e1d a
             return b
-       DependentFunctionTypeExpr s a b pos ->
-         do assertTypesMatch c e1d e1dType c (SymbolExpr s pos) a
-            c' <- augmentContext c (name s) Nothing a Nothing
+       DependentFunctionTypeExpr s b pos ->
+         do assertTypesMatch c e1d e1dType c (SymbolExpr s pos) (definedType s)
+            c' <- augmentContext c (name s) Nothing (definedType s) Nothing
                     [constantDefinition s e1dType e1d]
             bEv <- evaluate c' b
             return bEv
@@ -78,7 +78,7 @@ digestExpr c (RawLambdaExpr pos s t d) =
      c' <- augmentContext c s Nothing td Nothing []
      (dd, ddType) <- digestExpr c' d
      sym <- certainly (lookupSymbol c' s)
-     let lt = (DependentFunctionTypeExpr sym td ddType (Just pos)) in
+     let lt = (DependentFunctionTypeExpr sym ddType (Just pos)) in
        return (LambdaExpr c' sym dd (Just pos), lt)
 digestExpr c (RawFunctionTypeExpr pos a b) =
   do (ad, adType) <- digestExpr c a
@@ -93,7 +93,7 @@ digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
      sym <- certainly (lookupSymbol c' s)
      (bd, bdType) <- digestExpr c' b
      assertTypesMatch c' bd bdType rootContext bd typeOfTypes
-     return (DependentFunctionTypeExpr sym ad bd (Just pos), typeOfTypes)
+     return (DependentFunctionTypeExpr sym bd (Just pos), typeOfTypes)
 
 -- Throws an error unless the two exprs match as types. For now this
 -- simply means their normal forms are syntactically equal.
@@ -150,10 +150,11 @@ addEvaluationContextToExpr ec (FunctionTypeExpr a b pos) =
   let a' = addEvaluationContextToExpr ec a
       b' = addEvaluationContextToExpr ec b
     in FunctionTypeExpr a' b' pos
-addEvaluationContextToExpr ec (DependentFunctionTypeExpr s a b pos) =
-  let a' = addEvaluationContextToExpr ec a
+addEvaluationContextToExpr ec (DependentFunctionTypeExpr s b pos) =
+  let a' = addEvaluationContextToExpr ec (definedType s)
+      s' = s { definedType = a' }
       b' = addEvaluationContextToExpr ec b
-    in DependentFunctionTypeExpr s a' b' pos
+    in DependentFunctionTypeExpr s' b' pos
 
 addEvaluationContextToPattern :: Context -> Pattern -> Pattern
 addEvaluationContextToPattern ec (SymbolExpr s pos) =

@@ -35,18 +35,18 @@ evaluate c e@(AppExpr e0 e1 pos) =
               (definedType s) Nothing [constantDefinition s (definedType s) e1e]
            evaluate ec' d
       FunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
-      DependentFunctionTypeExpr _ _ _ _ -> barf ErrFunctionTypeOnAppLHS
+      DependentFunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
 evaluate c0 e@(LambdaExpr c1 s d pos) = return e
 evaluate c e@(FunctionTypeExpr a b pos) =
   do ae <- evaluate c a
      be <- evaluate c b
      return (FunctionTypeExpr ae be pos)
-evaluate c e@(DependentFunctionTypeExpr s a b pos) = do
-  ae <- evaluate c a
+evaluate c e@(DependentFunctionTypeExpr s b pos) = do
+  ae <- evaluate c (definedType s)
   c' <- augmentContext c (name s) Nothing ae Nothing []
   be <- evaluate c' b
   s' <- certainly (lookupSymbol c' (name s))
-  return (DependentFunctionTypeExpr s' ae be pos)
+  return (DependentFunctionTypeExpr s' be pos)
 
 -- Checks if the given expr matches any of the given pattern match equations.
 -- Returns the result of evaluating the expr against the first matching definition
