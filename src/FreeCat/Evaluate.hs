@@ -50,7 +50,7 @@ evaluate c e@(DependentFunctionTypeExpr s b pos) = do
 
 -- Checks if the given expr matches any of the given pattern match equations.
 -- Returns the result of evaluating the expr against the first matching definition
--- if one matches, and throws an error if no patterns match. Assumes the
+-- if one matches, and returns the input unchanged if no patterns match. Assumes the
 -- subexpressions of the given expr are normalized.
 evaluatePatternMatch :: [Equation] -> Expr -> FreeCat Expr
 evaluatePatternMatch [] e = return e
