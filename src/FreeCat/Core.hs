@@ -118,7 +118,7 @@ data Symbol = Symbol {
 data Equation = -- the Context is the evaluation context
   Equation Context [VariableDeclaration] Pattern Expr (Maybe SourcePos)
 
-data VariableDeclaration = VarDecl Symbol Expr
+type VariableDeclaration = Symbol
 
 constantDefinition :: Symbol -> Expr -> Expr -> Equation
 constantDefinition s t e = Equation rootContext [] (SymbolExpr s Nothing) e Nothing
@@ -227,13 +227,13 @@ instance Show Equation where
     "    " ++ showVariableDeclarationList decls
     ++ show pat ++ " = " ++ show e
 
-instance Show VariableDeclaration where
-  show (VarDecl s e) = show s ++ " : " ++ show e
+showVariableDeclaration :: VariableDeclaration -> String
+showVariableDeclaration s = show s ++ " : " ++ show (definedType s)
 
 showVariableDeclarationList :: [VariableDeclaration] -> String
 showVariableDeclarationList [] = ""
 showVariableDeclarationList (decl:decls) =
-  (Prelude.foldl joinByComma (show decl) (Prelude.map show decls)) ++ ". "
+  (Prelude.foldl joinByComma (show decl) (Prelude.map showVariableDeclaration decls)) ++ ". "
   where joinByComma a b = a ++ ", " ++ b
 
 instance Show Expr where

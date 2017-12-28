@@ -48,7 +48,7 @@ digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
 digestVarDecl :: Context -> RawTypeAssertion -> FreeCat VariableDeclaration
 digestVarDecl cPat (RawTypeAssertion s _) =
   do sym <- certainly (lookupSymbol cPat s)
-     return (VarDecl sym (definedType sym))
+     return sym
 
 -- Assumes all symbols used in RawExpr are defined in Context.
 -- Returns a pair of the digested expr and its inferred type.
@@ -174,9 +174,9 @@ addEvaluationContextToPattern ec (AppExpr f x pos) =
     in AppExpr f' x' pos
 
 addEvaluationContextToVariableDeclaration :: Context -> VariableDeclaration -> VariableDeclaration
-addEvaluationContextToVariableDeclaration ec (VarDecl s t) =
-  let t' = addEvaluationContextToExpr ec t
-    in VarDecl s t'
+addEvaluationContextToVariableDeclaration ec s =
+  let t' = addEvaluationContextToExpr ec (definedType s)
+    in s { definedType = t' }
 
 addEvaluationContextToEquation :: Context -> Equation -> Equation
 addEvaluationContextToEquation ec (Equation c decls pat e pos) =
