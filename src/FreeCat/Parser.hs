@@ -59,7 +59,7 @@ declaration =
       )
       <|>
       (
-        do argPats <- many pattern
+        do argPats <- many pattern0
            exactToken FatArrowToken
            e <- expr
            exactToken SemicolonToken
