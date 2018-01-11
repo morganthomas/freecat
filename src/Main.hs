@@ -1,4 +1,6 @@
-import FreeCat.Core (FreeCat, runFreeCat, digestContext, digestExpr, evaluate)
+import FreeCat.Core (FreeCat, runFreeCat)
+import FreeCat.Digest (digestContext, digestExpr)
+import FreeCat.Evaluate (evaluate)
 import FreeCat.Parser (runParse, lexAndParseContext, lexAndParseExpr)
 import System.Environment (getArgs)
 
