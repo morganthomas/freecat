@@ -11,7 +11,7 @@
 
 \maketitle
 
-Programming languages can usually be classified as typed or untyped. Untyped languages are usually relatively simple and flexible, but less capable of automatically finding errors in programs. Typed languages are usually more capable of automatically finding errors in programs, but this usually comes at the expense of flexibility and expressive capability. Expressive capability of typed languages can be increased, but this usually comes at the expense of increasing their complexity. 
+Programming languages can usually be classified as typed or untyped. Untyped languages are usually relatively simple and flexible, but less capable of automatically finding errors in programs. Typed languages are usually more capable of automatically finding errors in programs, but this usually comes at the expense of flexibility and expressive capability. Expressive capability of typed languages can be increased, but this usually comes at the expense of increasing their complexity.
 
 FreeCat is a programming language, a system of logic and computer algebra, and an approach to type theory and the foundations of math. It aims to chart a new programming language design path, where the guiding hope is that we can have automatic error finding, language simplicity, flexibility, and expressive capability, all at the same time, all to a degree which is robust and state of the art. FreeCat is based on the hypothesis that we can do this by following a language design approach based on type theory, when we do not try to rule out logical inconsistency in the core type theory.
 
@@ -28,6 +28,8 @@ FreeCat is an open source, non-profit project whose primary aim is to give peopl
 A further, related aim of this project is to describe a new approach to understanding the foundations of math. The hope is that people will find this approach simpler, conceptually clearer, and capable of expressing more concepts, compared to alternatives. The capability to express more concepts comes from not imposing restrictions designed to prevent logical inconsistency. This approach is limited in scope to constructive math, and more specifically it is limited to countably infinite objects and (partial) computable functions. These limitations can probably be removed if one gives up the goal of being able to implement the system as a computer programming language.
 
 FreeCat doesn't aim to be the best approach to solving everybody's problem. For now the focus is on making it a good approach to solving some problems.
+
+The current implementation of FreeCat can be considered the reference implementation in progress. This implementation provides the most complete definition and explanation of FreeCat. This implementation doesn't focus on performance optimization. The plan is to keep the reference implementation as simple as possible, optimizing for ease of human comprehension. Once the reference implementation is mature, it would provide a good basis for writing a performance-optimizing implementation.
 
 The conception and justification of FreeCat is rooted in a holistic, interdisciplinary approach to technical analysis. This holistic methodology assumes that there are deep connections between fundamental problems in different technical disciplines. It assumes in essence that we can clarify our thinking about technical problems in general by developing theories which can systematize solutions to technical problems in general.
 
