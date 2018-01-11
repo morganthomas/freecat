@@ -1,0 +1,1 @@
+example => cons Bar oof (cons Bar rab (cons Bar zab (empty Bar)))
