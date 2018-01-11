@@ -321,3 +321,11 @@ s `occursFreeIn` (FunctionTypeExpr a b _) = s `occursFreeIn` a || s `occursFreeI
 s `occursFreeIn` (DependentFunctionTypeExpr s' b _) =
   s `occursFreeIn` (definedType s')
   || (s /= s' && s `occursFreeIn` b)
+
+--
+-- Dealing with expressions
+--
+domainType :: Expr -> FreeCat Expr
+domainType (FunctionTypeExpr a b pos) = return a
+domainType (DependentFunctionTypeExpr s b pos) = return (definedType s)
+domainType _ = barf ErrAppHeadIsNotFunctionTyped
