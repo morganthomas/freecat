@@ -31,42 +31,52 @@ context = many declaration
 --
 
 declaration :: FreeCatParser RawDeclaration
-declaration = do {
-  s0 <- symbol;
-  pos <- getPosition;
-  (
+declaration =
+  do {
+    s0 <- symbol;
+    pos <- getPosition;
     (
-      do exactToken ColonToken
-         t0 <- expr3
-         varDecl0 <- return (RawTypeAssertion s0 t0)
-         varDecls <- many (exactToken CommaToken >> typeAssertion)
-         equation <- optionMaybe (
-             do exactToken PeriodToken
-                pat <- pattern
-                exactToken FatArrowToken
-                def <- expr
-                return (pat, def)
-           )
-         exactToken SemicolonToken
-         case equation of
-           Nothing ->
-             case varDecls of
-               [] -> return (RawTypeDeclaration pos varDecl0)
-               _ -> unexpected "comma after type assertion"
-           Just (pat, def) ->
-             return (RawEquationDeclaration pos (RawEquation (varDecl0:varDecls) pat def))
+      (
+        do exactToken ColonToken
+           t0 <- expr3
+           varDecl0 <- return (RawTypeAssertion s0 t0)
+           varDecls <- many (exactToken CommaToken >> typeAssertion)
+           equation <- optionMaybe (
+               do exactToken PeriodToken
+                  pat <- pattern
+                  exactToken FatArrowToken
+                  def <- expr
+                  return (pat, def)
+             )
+           exactToken SemicolonToken
+           case equation of
+             Nothing ->
+               case varDecls of
+                 [] -> return (RawTypeDeclaration pos varDecl0)
+                 _ -> unexpected "comma after type assertion"
+             Just (pat, def) ->
+               return (RawEquationDeclaration pos (RawEquation (varDecl0:varDecls) pat def))
+      )
+      <|>
+      (
+        do argPats <- many pattern
+           exactToken FatArrowToken
+           e <- expr
+           exactToken SemicolonToken
+           let pat = foldl (RawAppExpr pos) (RawSymbolExpr pos s0) argPats in
+            return (RawEquationDeclaration pos (RawEquation [] pat e))
+      )
     )
-    <|>
-    (
-      do argPats <- many pattern
-         exactToken FatArrowToken
-         e <- expr
-         exactToken SemicolonToken
-         let pat = foldl (RawAppExpr pos) (RawSymbolExpr pos s0) argPats in
-          return (RawEquationDeclaration pos (RawEquation [] pat e))
-    )
-  )
-}
+  }
+  <|>
+  do {
+    pat <- pattern; -- starts with a paren
+    pos <- getPosition;
+    exactToken FatArrowToken;
+    e <- expr;
+    exactToken SemicolonToken;
+    return (RawEquationDeclaration pos (RawEquation [] pat e))
+  }
 
 typeAssertion :: FreeCatParser RawTypeAssertion
 typeAssertion = do
