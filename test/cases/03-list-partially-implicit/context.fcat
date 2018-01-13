@@ -1,0 +1,30 @@
+List : Type -> Type;
+empty : (a : Type) -> List a;
+cons : (a : Type) -> a -> List a -> List a;
+
+map : (a : Type) -> (b : Type) -> (a -> b) -> List a -> List b;
+
+a : Type.
+map a b f (empty a) => (empty b);
+
+f : a -> b, xs : List a.
+map a b f (cons a x xs) => cons b (f x) (map a b f xs);
+
+Foo : Type;
+foo : Foo;
+bar : Foo;
+baz : Foo;
+
+Bar : Type;
+oof : Bar;
+rab : Bar;
+zab : Bar;
+
+squee : Foo -> Bar;
+squee foo => oof;
+squee bar => rab;
+squee baz => zab;
+
+example : List Bar;
+example => (map Foo Bar (\x : Foo => squee x)
+  (cons Foo foo (cons Foo bar (cons Foo baz (empty Foo)))));

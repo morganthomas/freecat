@@ -19,34 +19,96 @@ digestContext decls =
 
 addToContext :: Context -> RawDeclaration -> FreeCat Context
 addToContext c (RawTypeDeclaration pos assertion) =
-  digestTypeAssertion c (assertion, pos)
+  digestTypeAssertion False c (assertion, pos)
 addToContext c (RawImportDeclaration pos _) = error "import not implemented"
 addToContext c (RawEquationDeclaration pos (RawEquation rawdecls rawpat rawdef)) =
  case lookupSymbol c (rawPatternLeadSymbol rawpat) of
    Nothing -> barf ErrEquationWithoutMatchingTypeDeclaration
    Just sym ->
-     do cPat <- foldM digestTypeAssertion c (Prelude.map (,pos) rawdecls)
-        (pat, patType) <- digestExpr cPat rawpat
+     do (pat, patType, cPat) <- digestPattern c rawpat
         (def, defType) <- digestExpr cPat rawdef
         assertTypesMatch cPat def defType cPat pat patType
-        decls <- mapM (digestVarDecl cPat) rawdecls
+        decls <- mapM (digestVarDecl pos cPat) rawdecls
         augmentContext c (name sym) (Just $ nativeContext sym) (definedType sym) (declarationSourcePos sym)
           (equations sym ++ [ (Equation cPat decls pat def (Just pos)) ]) -- TODO: less consing
 
-digestTypeAssertion :: Context -> (RawTypeAssertion, SourcePos) -> FreeCat Context
-digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
-  case lookupSymbol c s of
-    Just _ -> barf ErrExtraTypeDeclaration
-    Nothing ->
-      do (t, tt) <- digestExpr c rawt
-         assertTypesMatch c t tt rootContext t typeOfTypes
-         c' <- augmentContext c s Nothing t (Just pos) []
-         return c'
+digestTypeAssertion :: Bool -> Context -> (RawTypeAssertion, SourcePos) -> FreeCat Context
+digestTypeAssertion allowDuplicates c ass@(RawTypeAssertion s rawt, pos) =
+  if allowDuplicates
+    then digestTypeAssertion' c ass
+    else
+      case lookupSymbol c s of
+        Just _ -> barf ErrExtraTypeDeclaration
+        Nothing -> digestTypeAssertion' c ass
+
+digestTypeAssertion' :: Context -> (RawTypeAssertion, SourcePos) -> FreeCat Context
+digestTypeAssertion' c (RawTypeAssertion s rawt, pos) =
+  do (t, tt) <- digestExpr c rawt
+     assertTypesMatch c t tt rootContext t typeOfTypes
+     c' <- augmentContext c s Nothing t (Just pos) []
+     return c'
 
 -- cPat is assumed to contain a declaration generated from this type
 -- assertion via digestTypeAssertion
-digestVarDecl :: Context -> RawTypeAssertion -> FreeCat VariableDeclaration
-digestVarDecl cPat (RawTypeAssertion s _) = certainly (lookupSymbol cPat s)
+digestVarDecl :: SourcePos -> Context -> RawTypeAssertion -> FreeCat VariableDeclaration
+digestVarDecl pos cPat assertion@(RawTypeAssertion s rawt) = do
+  sym <- certainly (lookupSymbol cPat s)
+  c' <- digestTypeAssertion True cPat (assertion, pos)
+  sym' <- certainly (lookupSymbol c' s)
+  assertTypesMatch cPat (SymbolExpr sym (Just pos)) (definedType sym) c' (SymbolExpr sym' (Just pos)) (definedType sym')
+  return sym
+
+-- Returns a triple of the digested pattern, its inferred type, and the Context
+-- resulting from inferring the types of any free variables in the pattern.
+digestPattern :: Context -> RawExpr -> FreeCat (Expr, Expr, Context)
+digestPattern c (RawSymbolExpr pos s) =
+  case lookupSymbol c s of
+    Just sym -> return (SymbolExpr sym (Just pos), definedType sym, c)
+    Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
+digestPattern c0 (RawAppExpr pos e0 e1) = do
+     (e0d, e0dType, c1) <- digestPattern c0 e0
+     e1_expectedType <- domainType ErrAppHeadIsNotFunctionTyped e0dType
+     (e1d, e1dType, c2) <- digestPattern' c1 e1 e1_expectedType
+     appType <- case e0dType of
+       FunctionTypeExpr a b pos ->
+         do assertTypesMatch c2 e1d e1dType c2 e1d a
+            return b
+       DependentFunctionTypeExpr s b pos ->
+         do assertTypesMatch c2 e1d e1dType c2 (SymbolExpr s pos) (definedType s)
+            c3 <- augmentContext c2 (name s) Nothing (definedType s) Nothing
+                    [constantDefinition s e1dType e1d]
+            bEv <- evaluate c3 b
+            return bEv
+       _ -> barf ErrAppHeadIsNotFunctionTyped
+     return ((AppExpr e0d e1d (Just pos)), appType, c2)
+
+-- Also expects to receive an expected type (et) for this pattern. It can handle
+-- the case of an undeclared variable. It uses the expected type to infer
+-- the types of undeclared variables.
+digestPattern' :: Context -> RawExpr -> Expr -> FreeCat (Expr, Expr, Context)
+digestPattern' c (RawSymbolExpr pos s) et =
+   case lookupSymbol c s of
+     Just sym -> return (SymbolExpr sym (Just pos), definedType sym, c)
+     Nothing -> do
+      c' <- augmentContext c s Nothing et Nothing []
+      sym <- certainly (lookupSymbol c' s)
+      return (SymbolExpr sym (Just pos), et, c')
+digestPattern' c0 (RawAppExpr pos e0 e1) et =
+   do (e0d, e0dType, c1) <- digestPattern c0 e0
+      e1_expectedType <- domainType ErrAppHeadIsNotFunctionTyped e0dType
+      (e1d, e1dType, c2) <- digestPattern' c1 e1 e1_expectedType
+      appType <- case e0dType of
+        FunctionTypeExpr a b pos ->
+          do assertTypesMatch c2 e1d e1dType c2 e1d a
+             return b
+        DependentFunctionTypeExpr s b pos ->
+          do assertTypesMatch c2 e1d e1dType c2 (SymbolExpr s pos) (definedType s)
+             c3 <- augmentContext c2 (name s) Nothing (definedType s) Nothing
+                     [constantDefinition s e1dType e1d]
+             bEv <- evaluate c3 b
+             return bEv
+        _ -> barf ErrAppHeadIsNotFunctionTyped
+      return ((AppExpr e0d e1d (Just pos)), appType, c2)
 
 -- Assumes all symbols used in RawExpr are defined in Context.
 -- Returns a pair of the digested expr and its inferred type.
