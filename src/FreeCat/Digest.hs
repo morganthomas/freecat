@@ -25,12 +25,12 @@ addToContext c (RawEquationDeclaration pos (RawEquation rawdecls rawpat rawdef))
  case lookupSymbol c (rawPatternLeadSymbol rawpat) of
    Nothing -> barf ErrEquationWithoutMatchingTypeDeclaration
    Just sym ->
-     do (pat, patType, cPat') <- digestPattern c rawpat
-        (def, defType) <- digestExpr cPat' rawdef
-        assertTypesMatch cPat' def defType cPat' pat patType
-        decls <- mapM (digestVarDecl pos cPat') rawdecls
+     do (pat, patType, cPat) <- digestPattern c rawpat
+        (def, defType) <- digestExpr cPat rawdef
+        assertTypesMatch cPat def defType cPat pat patType
+        decls <- mapM (digestVarDecl pos cPat) rawdecls
         augmentContext c (name sym) (Just $ nativeContext sym) (definedType sym) (declarationSourcePos sym)
-          (equations sym ++ [ (Equation cPat' decls pat def (Just pos)) ]) -- TODO: less consing
+          (equations sym ++ [ (Equation cPat decls pat def (Just pos)) ]) -- TODO: less consing
 
 digestTypeAssertion :: Bool -> Context -> (RawTypeAssertion, SourcePos) -> FreeCat Context
 digestTypeAssertion allowDuplicates c ass@(RawTypeAssertion s rawt, pos) =
