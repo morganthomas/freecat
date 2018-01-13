@@ -33,17 +33,20 @@ addToContext c (RawEquationDeclaration pos (RawEquation rawdecls rawpat rawdef))
           (equations sym ++ [ (Equation cPat' decls pat def (Just pos)) ]) -- TODO: less consing
 
 digestTypeAssertion :: Bool -> Context -> (RawTypeAssertion, SourcePos) -> FreeCat Context
-digestTypeAssertion allowDuplicates c (RawTypeAssertion s rawt, pos) =
-  case lookupSymbol c s of
-    Just _ ->
-      if allowDuplicates
-        then return c
-        else barf ErrExtraTypeDeclaration
-    Nothing ->
-      do (t, tt) <- digestExpr c rawt
-         assertTypesMatch c t tt rootContext t typeOfTypes
-         c' <- augmentContext c s Nothing t (Just pos) []
-         return c'
+digestTypeAssertion allowDuplicates c ass@(RawTypeAssertion s rawt, pos) =
+  if allowDuplicates
+    then digestTypeAssertion' c ass
+    else
+      case lookupSymbol c s of
+        Just _ -> barf ErrExtraTypeDeclaration
+        Nothing -> digestTypeAssertion' c ass
+
+digestTypeAssertion' :: Context -> (RawTypeAssertion, SourcePos) -> FreeCat Context
+digestTypeAssertion' c (RawTypeAssertion s rawt, pos) =
+  do (t, tt) <- digestExpr c rawt
+     assertTypesMatch c t tt rootContext t typeOfTypes
+     c' <- augmentContext c s Nothing t (Just pos) []
+     return c'
 
 -- cPat is assumed to contain a declaration generated from this type
 -- assertion via digestTypeAssertion
