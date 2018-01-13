@@ -82,7 +82,9 @@ digestPattern c0 (RawAppExpr pos e0 e1) = do
        _ -> barf ErrAppHeadIsNotFunctionTyped
      return ((AppExpr e0d e1d (Just pos)), appType, c2)
 
--- Also expects to receive an expected type (et) for this pattern
+-- Also expects to receive an expected type (et) for this pattern. It can handle
+-- the case of an undeclared variable. It uses the expected type to infer
+-- the types of undeclared variables.
 digestPattern' :: Context -> RawExpr -> Expr -> FreeCat (Expr, Expr, Context)
 digestPattern' c (RawSymbolExpr pos s) et =
    case lookupSymbol c s of
