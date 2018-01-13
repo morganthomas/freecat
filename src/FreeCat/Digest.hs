@@ -19,24 +19,26 @@ digestContext decls =
 
 addToContext :: Context -> RawDeclaration -> FreeCat Context
 addToContext c (RawTypeDeclaration pos assertion) =
-  digestTypeAssertion c (assertion, pos)
+  digestTypeAssertion False c (assertion, pos)
 addToContext c (RawImportDeclaration pos _) = error "import not implemented"
 addToContext c (RawEquationDeclaration pos (RawEquation rawdecls rawpat rawdef)) =
  case lookupSymbol c (rawPatternLeadSymbol rawpat) of
    Nothing -> barf ErrEquationWithoutMatchingTypeDeclaration
    Just sym ->
-     do --cPat <- foldM digestTypeAssertion c (Prelude.map (,pos) rawdecls) -- TODO: pay attention to type decls
-        (pat, patType, cPat') <- digestPattern c rawpat
+     do (pat, patType, cPat') <- digestPattern c rawpat
         (def, defType) <- digestExpr cPat' rawdef
         assertTypesMatch cPat' def defType cPat' pat patType
-        decls <- mapM (digestVarDecl cPat') rawdecls
+        decls <- mapM (digestVarDecl pos cPat') rawdecls
         augmentContext c (name sym) (Just $ nativeContext sym) (definedType sym) (declarationSourcePos sym)
           (equations sym ++ [ (Equation cPat' decls pat def (Just pos)) ]) -- TODO: less consing
 
-digestTypeAssertion :: Context -> (RawTypeAssertion, SourcePos) -> FreeCat Context
-digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
+digestTypeAssertion :: Bool -> Context -> (RawTypeAssertion, SourcePos) -> FreeCat Context
+digestTypeAssertion allowDuplicates c (RawTypeAssertion s rawt, pos) =
   case lookupSymbol c s of
-    Just _ -> barf ErrExtraTypeDeclaration
+    Just _ ->
+      if allowDuplicates
+        then return c
+        else barf ErrExtraTypeDeclaration
     Nothing ->
       do (t, tt) <- digestExpr c rawt
          assertTypesMatch c t tt rootContext t typeOfTypes
@@ -45,8 +47,13 @@ digestTypeAssertion c (RawTypeAssertion s rawt, pos) =
 
 -- cPat is assumed to contain a declaration generated from this type
 -- assertion via digestTypeAssertion
-digestVarDecl :: Context -> RawTypeAssertion -> FreeCat VariableDeclaration
-digestVarDecl cPat (RawTypeAssertion s _) = certainly (lookupSymbol cPat s)
+digestVarDecl :: SourcePos -> Context -> RawTypeAssertion -> FreeCat VariableDeclaration
+digestVarDecl pos cPat assertion@(RawTypeAssertion s rawt) = do
+  sym <- certainly (lookupSymbol cPat s)
+  c' <- digestTypeAssertion True cPat (assertion, pos)
+  sym' <- certainly (lookupSymbol c' s)
+  assertTypesMatch cPat (SymbolExpr sym (Just pos)) (definedType sym) c' (SymbolExpr sym' (Just pos)) (definedType sym')
+  return sym
 
 -- Returns a triple of the digested pattern, its inferred type, and the Context
 -- resulting from inferring the types of any free variables in the pattern.
