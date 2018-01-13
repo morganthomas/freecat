@@ -64,7 +64,7 @@ digestPattern c (RawSymbolExpr pos s) =
     Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
 digestPattern c0 (RawAppExpr pos e0 e1) = do
      (e0d, e0dType, c1) <- digestPattern c0 e0
-     e1_expectedType <- domainType e0dType
+     e1_expectedType <- domainType ErrAppHeadIsNotFunctionTyped e0dType
      (e1d, e1dType, c2) <- digestPattern' c1 e1 e1_expectedType
      appType <- case e0dType of
        FunctionTypeExpr a b pos ->
@@ -90,7 +90,7 @@ digestPattern' c (RawSymbolExpr pos s) et =
       return (SymbolExpr sym (Just pos), et, c')
 digestPattern' c0 (RawAppExpr pos e0 e1) et =
    do (e0d, e0dType, c1) <- digestPattern c0 e0
-      e1_expectedType <- domainType e0dType
+      e1_expectedType <- domainType ErrAppHeadIsNotFunctionTyped e0dType
       (e1d, e1dType, c2) <- digestPattern' c1 e1 e1_expectedType
       appType <- case e0dType of
         FunctionTypeExpr a b pos ->

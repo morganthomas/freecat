@@ -325,7 +325,7 @@ s `occursFreeIn` (DependentFunctionTypeExpr s' b _) =
 --
 -- Dealing with expressions
 --
-domainType :: Expr -> FreeCat Expr
-domainType (FunctionTypeExpr a b pos) = return a
-domainType (DependentFunctionTypeExpr s b pos) = return (definedType s)
-domainType _ = barf ErrAppHeadIsNotFunctionTyped
+domainType :: Error -> Expr -> FreeCat Expr
+domainType err (FunctionTypeExpr a b pos) = return a
+domainType err (DependentFunctionTypeExpr s b pos) = return (definedType s)
+domainType err _ = barf err
