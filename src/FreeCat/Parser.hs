@@ -138,7 +138,7 @@ lambdaExpr = do
   return (RawLambdaExpr pos s t e)
 
 expr3 :: FreeCatParser RawExpr
-expr3 = try dependentFunctionType <|> expr2
+expr3 = try dependentFunctionType <|> implicitDependencyType <|> expr2
 
 dependentFunctionType :: FreeCatParser RawExpr
 dependentFunctionType = do
@@ -151,6 +151,18 @@ dependentFunctionType = do
   exactToken ThinArrowToken
   b <- expr3
   return (RawDependentFunctionTypeExpr pos s a b)
+
+implicitDependencyType :: FreeCatParser RawExpr
+implicitDependencyType = do
+  pos <- getPosition
+  exactToken OpenCurlyToken
+  s <- symbol
+  exactToken ColonToken
+  a <- expr3
+  exactToken CloseCurlyToken
+  exactToken ThinArrowToken
+  b <- expr3
+  return (RawImplicitDependencyTypeExpr pos s a b)
 
 expr2 :: FreeCatParser RawExpr
 expr2 = do

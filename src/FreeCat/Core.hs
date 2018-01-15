@@ -57,6 +57,7 @@ data RawExpr =
  | RawLambdaExpr SourcePos RawSymbol RawExpr RawExpr
  | RawFunctionTypeExpr SourcePos RawExpr RawExpr
  | RawDependentFunctionTypeExpr SourcePos RawSymbol RawExpr RawExpr
+ | RawImplicitDependencyTypeExpr SourcePos RawSymbol RawExpr RawExpr
 
 type RawPattern = RawExpr
 
@@ -85,13 +86,14 @@ type RawContext = [RawDeclaration]
 type Pattern = Expr
 
 data Expr =
- -- last argument of type Expr is the expression's type
    SymbolExpr Symbol (Maybe SourcePos)
- | AppExpr Expr Expr (Maybe SourcePos)
+ -- [Expr] is the values of the implicit arguments
+ | AppExpr [Expr] Expr Expr (Maybe SourcePos)
  -- Context is the evaluation context for the lambda body
  | LambdaExpr Context Symbol Expr (Maybe SourcePos)
  | FunctionTypeExpr Expr Expr (Maybe SourcePos)
  | DependentFunctionTypeExpr Symbol Expr (Maybe SourcePos)
+ | ImplicitDependencyTypeExpr Symbol Expr (Maybe SourcePos)
 
 data Context = Context {
   contextId :: Integer,
@@ -120,6 +122,7 @@ type VariableDeclaration = Symbol
 constantDefinition :: Symbol -> Expr -> Expr -> Equation
 constantDefinition s t e = Equation rootContext [] (SymbolExpr s Nothing) e Nothing
 
+-- Type : Type
 rootTypeSymbol :: Symbol
 rootTypeSymbol =
  Symbol {
@@ -133,13 +136,35 @@ rootTypeSymbol =
 typeOfTypes :: Expr
 typeOfTypes = SymbolExpr rootTypeSymbol Nothing
 
+-- undefined : {a : Type} -> a
+undefinedSymbol :: Symbol
+undefinedSymbol =
+  let a = Symbol {
+            name = "a",
+            definedType = typeOfTypes,
+            declarationSourcePos = Nothing,
+            equations = [],
+            nativeContext = rootContext
+          }
+  in
+    Symbol {
+      name = "undefined",
+      definedType = ImplicitDependencyTypeExpr a (SymbolExpr a Nothing) Nothing,
+      declarationSourcePos = Nothing,
+      equations = [],
+      nativeContext = rootContext
+    }
+
 rootContext :: Context
 rootContext =
  Context {
    contextId = 0,
    uri = Nothing,
    parentContext = Nothing,
-   declarations = Map.singleton rawTypeSymbol rootTypeSymbol,
+   declarations = Map.fromList [
+    (rawTypeSymbol, rootTypeSymbol),
+    ("undefined", undefinedSymbol)
+   ]
    importedSymbols = Map.empty
  }
 
@@ -161,6 +186,8 @@ instance Eq Expr where
     not (s1 `occursFreeIn` b1) && a0 == (definedType s1) && b0 == b1
   (DependentFunctionTypeExpr s0 b0 _) == (FunctionTypeExpr a1 b1 _) =
     not (s0 `occursFreeIn` b0) && (definedType s0) == a1 && b0 == b1
+  (ImplicitDependencyTypeExpr s0 b0 _) == (ImplicitDependencyTypeExpr s1 b1 _) =
+    (definedType s0) == (definedType s1) && b0 == (substitute s1 (SymbolExpr s0 Nothing) b1)
   _ == _ = False
 
 instance Eq Symbol where
@@ -200,6 +227,7 @@ instance Show Expr where
   show (LambdaExpr c s e pos) = "(\\" ++ name s ++ " : " ++ show (definedType s) ++ " => " ++ show e ++ ")"
   show (FunctionTypeExpr a b pos) = "(" ++ show a ++ " -> " ++ show b ++ ")"
   show (DependentFunctionTypeExpr s b pos) = "((" ++ name s ++ " : " ++ show (definedType s) ++ ") -> " ++ show b ++ ")"
+  show (ImplicitDependencyTypeExpr s b pos) = "({" ++ name s ++ " : " ++ show (definedType s) ++ "} -> " ++ show b ++ ")"
 
 --
 -- FreeCat monadic meta-context
@@ -304,6 +332,10 @@ substitute s v e@(DependentFunctionTypeExpr s' b pos) =
   if s == s'
     then DependentFunctionTypeExpr (s' { definedType = substitute s v (definedType s') }) b Nothing
     else DependentFunctionTypeExpr (s' { definedType = substitute s v (definedType s') }) (substitute s v b) Nothing
+substitute s v e@(ImplicitDependencyTypeExpr s' b pos) =
+  if s == s'
+    then ImplicitDependencyTypeExpr (s' { definedType = substitute s v (definedType s') }) b Nothing
+    else ImplicitDependencyTypeExpr (s' { definedType = substitute s v (definedType s') }) (substitute s v b) Nothing
 
 -- returns true if the given symbol occurs free in the given expr
 occursFreeIn :: Symbol -> Expr -> Bool
@@ -332,4 +364,5 @@ leadSymbol (DependentFunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFu
 domainType :: Error -> Expr -> FreeCat Expr
 domainType err (FunctionTypeExpr a b pos) = return a
 domainType err (DependentFunctionTypeExpr s b pos) = return (definedType s)
+domainType err (ImplicitDependencyTypeExpr s b pos) = return (definedType s)
 domainType err _ = barf err

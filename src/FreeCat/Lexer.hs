@@ -14,6 +14,8 @@ data Token =
   | FatArrowToken
   | OpenParenToken
   | CloseParenToken
+  | OpenCurlyToken
+  | CloseCurlyToken
   | BackslashToken
   deriving (Eq, Show)
 
@@ -43,6 +45,8 @@ freeCatToken =
   <|> constToken "=>" FatArrowToken
   <|> constToken "(" OpenParenToken
   <|> constToken ")" CloseParenToken
+  <|> constToken "{" OpenCurlyToken
+  <|> constToken "}" CloseCurlyToken
   <|> constToken "\\" BackslashToken
 
 symbolToken :: FreeCatLexer PositionedToken
