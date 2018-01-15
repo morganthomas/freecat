@@ -1,7 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 
 -- Core syntactic and semantic definitions
--- The central processing unit
 module FreeCat.Core where
 
 import Data.Map as Map
