@@ -135,6 +135,7 @@ digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
      assertTypesMatch c' bd bdType rootContext bd typeOfTypes
      return (DependentFunctionTypeExpr sym bd (Just pos), typeOfTypes)
 
+-- Infers the type of the function application (AppExpr e0 e1 _)
 inferAppType :: Context -> Expr -> Expr -> Expr -> Expr -> FreeCat Expr
 inferAppType c e0 e0Type e1 e1Type =
  case e0Type of
