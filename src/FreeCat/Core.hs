@@ -143,48 +143,9 @@ rootContext =
    importedSymbols = Map.empty
  }
 
--- Gathers the lead symbol in a normalized application expression.
-leadSymbol :: Expr -> FreeCat Symbol
-leadSymbol (SymbolExpr s pos) = return s
-leadSymbol (AppExpr e0 e1 pos) = leadSymbol e0
-leadSymbol (LambdaExpr _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
-leadSymbol (FunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
-leadSymbol (DependentFunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
-
-lookupSymbol :: Context -> String -> Maybe Symbol
-lookupSymbol c s =
-  case Map.lookup s (declarations c) of
-    Just sym -> Just sym
-    Nothing -> Map.lookup s (importedSymbols c)
-
--- Creates a new context which has the given context as parent and has a symbol
--- with the given name, type, and equations.
-augmentContext :: Context -> String -> Maybe Context -> Expr ->
-  Maybe SourcePos -> [Equation] -> FreeCat Context
-augmentContext parentContext vName vNativeContext vType pos vDefs =
-  do contextId <- popContextId
-     return $ _augmentContext parentContext vName vNativeContext vType pos vDefs contextId
-
-_augmentContext :: Context -> String -> Maybe Context -> Expr ->
-  Maybe SourcePos -> [Equation] -> Integer -> Context
-_augmentContext parentContext vName vNativeContext vType pos equations contextId =
-  let newContext =
-        Context {
-          contextId = contextId,
-          uri = Nothing,
-          parentContext = Just parentContext,
-          declarations = Map.insert vName newSymbol (declarations parentContext),
-          importedSymbols = (importedSymbols parentContext)
-        }
-      newSymbol =
-        Symbol {
-          name = vName,
-          definedType = vType,
-          declarationSourcePos = pos,
-          equations = equations,
-          nativeContext = fromMaybe newContext vNativeContext
-        }
-    in newContext
+--
+-- Eq and Show
+--
 
 instance Eq Expr where
   (SymbolExpr s _) == (SymbolExpr t _) = s == t
@@ -287,8 +248,43 @@ certainly (Just x) = return x
 certainly Nothing = barf ErrIThoughtThisWasImpossible
 
 --
--- Dealing with variables
+-- Dealing with symbols and contexts
 --
+
+lookupSymbol :: Context -> String -> Maybe Symbol
+lookupSymbol c s =
+  case Map.lookup s (declarations c) of
+    Just sym -> Just sym
+    Nothing -> Map.lookup s (importedSymbols c)
+
+-- Creates a new context which has the given context as parent and has a symbol
+-- with the given name, type, and equations.
+augmentContext :: Context -> String -> Maybe Context -> Expr ->
+  Maybe SourcePos -> [Equation] -> FreeCat Context
+augmentContext parentContext vName vNativeContext vType pos vDefs =
+  do contextId <- popContextId
+     return $ _augmentContext parentContext vName vNativeContext vType pos vDefs contextId
+
+_augmentContext :: Context -> String -> Maybe Context -> Expr ->
+  Maybe SourcePos -> [Equation] -> Integer -> Context
+_augmentContext parentContext vName vNativeContext vType pos equations contextId =
+  let newContext =
+        Context {
+          contextId = contextId,
+          uri = Nothing,
+          parentContext = Just parentContext,
+          declarations = Map.insert vName newSymbol (declarations parentContext),
+          importedSymbols = (importedSymbols parentContext)
+        }
+      newSymbol =
+        Symbol {
+          name = vName,
+          definedType = vType,
+          declarationSourcePos = pos,
+          equations = equations,
+          nativeContext = fromMaybe newContext vNativeContext
+        }
+    in newContext
 
 -- Replaces all free instances of a symbol with an expr in an expr
 substitute :: Symbol -> Expr -> Expr -> Expr
@@ -324,6 +320,15 @@ s `occursFreeIn` (DependentFunctionTypeExpr s' b _) =
 --
 -- Dealing with expressions
 --
+
+-- Gathers the lead symbol in a normalized application expression.
+leadSymbol :: Expr -> FreeCat Symbol
+leadSymbol (SymbolExpr s pos) = return s
+leadSymbol (AppExpr e0 e1 pos) = leadSymbol e0
+leadSymbol (LambdaExpr _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
+leadSymbol (FunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
+leadSymbol (DependentFunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
+
 domainType :: Error -> Expr -> FreeCat Expr
 domainType err (FunctionTypeExpr a b pos) = return a
 domainType err (DependentFunctionTypeExpr s b pos) = return (definedType s)
