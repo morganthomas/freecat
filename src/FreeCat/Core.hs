@@ -155,6 +155,9 @@ undefinedSymbol =
       nativeContext = rootContext
     }
 
+makeUndefined :: Expr -> Expr
+makeUndefined t = (AppExpr (SymbolExpr undefinedSymbol Nothing) t Nothing)
+
 rootContext :: Context
 rootContext =
  Context {
