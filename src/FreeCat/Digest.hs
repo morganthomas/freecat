@@ -97,17 +97,7 @@ digestPattern' c0 (RawAppExpr pos e0 e1) et =
    do (e0d, e0dType, c1) <- digestPattern c0 e0
       e1_expectedType <- domainType ErrAppHeadIsNotFunctionTyped e0dType
       (e1d, e1dType, c2) <- digestPattern' c1 e1 e1_expectedType
-      appType <- case e0dType of
-        FunctionTypeExpr a b pos ->
-          do assertTypesMatch c2 e1d e1dType c2 e1d a
-             return b
-        DependentFunctionTypeExpr s b pos ->
-          do assertTypesMatch c2 e1d e1dType c2 (SymbolExpr s pos) (definedType s)
-             c3 <- augmentContext c2 (name s) Nothing (definedType s) Nothing
-                     [constantDefinition s e1dType e1d]
-             bEv <- evaluate c3 b
-             return bEv
-        _ -> barf ErrAppHeadIsNotFunctionTyped
+      appType <- inferAppType c2 e0d e0dType e1d e1dType
       return ((AppExpr e0d e1d (Just pos)), appType, c2)
 
 -- Assumes all symbols used in RawExpr are defined in Context.
@@ -120,17 +110,7 @@ digestExpr c (RawSymbolExpr pos s) =
 digestExpr c (RawAppExpr pos e0 e1) =
   do (e0d, e0dType) <- digestExpr c e0
      (e1d, e1dType) <- digestExpr c e1
-     appType <- case e0dType of
-       FunctionTypeExpr a b pos ->
-         do assertTypesMatch c e1d e1dType c e1d a
-            return b
-       DependentFunctionTypeExpr s b pos ->
-         do assertTypesMatch c e1d e1dType c (SymbolExpr s pos) (definedType s)
-            c' <- augmentContext c (name s) Nothing (definedType s) Nothing
-                    [constantDefinition s e1dType e1d]
-            bEv <- evaluate c' b
-            return bEv
-       _ -> barf ErrAppHeadIsNotFunctionTyped
+     appType <- inferAppType c e0d e0dType e1d e1dType
      return ((AppExpr e0d e1d (Just pos)), appType)
 digestExpr c (RawLambdaExpr pos s t d) =
   do (td, tdType) <- digestExpr c t
@@ -154,6 +134,21 @@ digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
      (bd, bdType) <- digestExpr c' b
      assertTypesMatch c' bd bdType rootContext bd typeOfTypes
      return (DependentFunctionTypeExpr sym bd (Just pos), typeOfTypes)
+
+-- Infers the type of the function application (AppExpr e0 e1 _)
+inferAppType :: Context -> Expr -> Expr -> Expr -> Expr -> FreeCat Expr
+inferAppType c e0 e0Type e1 e1Type =
+ case e0Type of
+   FunctionTypeExpr a b pos ->
+     do assertTypesMatch c e1 e1Type c e1 a
+        return b
+   DependentFunctionTypeExpr s b pos ->
+     do assertTypesMatch c e1 e1Type c (SymbolExpr s pos) (definedType s)
+        c' <- augmentContext c (name s) Nothing (definedType s) Nothing
+                [constantDefinition s e1Type e1]
+        bEv <- evaluate c' b
+        return bEv
+   _ -> barf ErrAppHeadIsNotFunctionTyped
 
 -- Throws an error unless the two exprs match as types.
 assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
