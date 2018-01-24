@@ -128,6 +128,7 @@ digestExpr c e@(RawAppExpr pos e0 e1) = do
   case appHead of
     RawSymbolExpr s ->
       sym <- lookupSymbol c s
+      arguments <- mapM (digestExpr c) (rawApplicationArguments e)
       TODO
     RawLambdaExpr _ _ -> error "case not implemented yet"
 digestExpr c (RawLambdaExpr pos s t d) =
