@@ -100,42 +100,7 @@ digestPattern' c0 (RawAppExpr pos e0 e1) et =
       appType <- inferAppType c2 e0d e0dType e1d e1dType
       return ((AppExpr e0d e1d (Just pos)), appType, c2)
 
--- Assumes all symbols used in RawExpr are defined in Context.
--- Returns a pair of the digested expr and its inferred type.
-digestExpr :: Context -> RawExpr -> FreeCat (Expr, Expr)
-digestExpr c (RawSymbolExpr pos s) =
-  case lookupSymbol c s of
-    Just sym -> return (SymbolExpr sym (Just pos), definedType sym)
-    Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
-digestExpr c (RawAppExpr pos e0 e1) =
-  do (e0d, e0dType) <- digestExpr c e0
-     (e1d, e1dType) <- digestExpr c e1
-     appType <- inferAppType c e0d e0dType e1d e1dType
-     return ((AppExpr e0d e1d (Just pos)), appType)
-digestExpr c (RawLambdaExpr pos s t d) =
-  do (td, tdType) <- digestExpr c t
-     assertTypesMatch c td tdType rootContext td typeOfTypes
-     c' <- augmentContext c s Nothing td Nothing []
-     (dd, ddType) <- digestExpr c' d
-     sym <- certainly (lookupSymbol c' s)
-     let lt = (DependentFunctionTypeExpr sym ddType (Just pos)) in
-       return (LambdaExpr c' sym dd (Just pos), lt)
-digestExpr c (RawFunctionTypeExpr pos a b) =
-  do (ad, adType) <- digestExpr c a
-     assertTypesMatch c ad adType rootContext ad typeOfTypes
-     (bd, bdType) <- digestExpr c b
-     assertTypesMatch c bd bdType rootContext bd typeOfTypes
-     return (FunctionTypeExpr ad bd (Just pos), typeOfTypes)
-digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
-  do (ad, adType) <- digestExpr c a
-     assertTypesMatch c ad adType rootContext ad typeOfTypes
-     c' <- augmentContext c s Nothing ad (Just pos) []
-     sym <- certainly (lookupSymbol c' s)
-     (bd, bdType) <- digestExpr c' b
-     assertTypesMatch c' bd bdType rootContext bd typeOfTypes
-     return (DependentFunctionTypeExpr sym bd (Just pos), typeOfTypes)
-
--- Infers the type of the function application (AppExpr e0 e1 _)
+-- Infers the type of the function application (AppExpr [] e0 e1 _)
 inferAppType :: Context -> Expr -> Expr -> Expr -> Expr -> FreeCat Expr
 inferAppType c e0 e0Type e1 e1Type =
  case e0Type of
@@ -148,7 +113,47 @@ inferAppType c e0 e0Type e1 e1Type =
                 [constantDefinition s e1Type e1]
         bEv <- evaluate c' b
         return bEv
+   ImplicitDependencyTypeExpr s b pos -> barf ErrCannotInferImplicitArgumentValue
    _ -> barf ErrAppHeadIsNotFunctionTyped
+
+-- Assumes all symbols used in RawExpr are defined in Context.
+-- Requires the expected type et of the raw expr.
+-- Ensures the raw expr's inferred type matches the expected type.
+digestExpr :: Context -> RawExpr -> Expr -> FreeCat Expr
+digestExpr c (RawSymbolExpr pos s) et =
+ case lookupSymbol c s of
+   Just sym ->
+    let symExp = SymbolExpr sym (Just pos) in
+      do assertTypesMatch c symExp (definedType sym) c symExp et
+         return symExp
+   Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
+digestExpr c e@(RawAppExpr pos e0 e1) et =
+
+digestExpr c (RawLambdaExpr pos s t d) et =
+  do -- t digested
+     td <- digestExpr c t typeOfTypes
+     -- expected value of t, considering expected type et
+     td_expected <- domainType ErrIThoughtThisWasImpossible et -- not really impossible, but not sure how to describe this error
+     -- add a type declaration for s to c, producing c'
+     c' <- augmentContext c s Nothing td (Just pos) []
+     sym <- certainly (lookupSymbol c' s)
+     assertTypesMatch c sym td c sym td_expected
+     dd_expectedType <- codomainType et (SymbolExpr sym pos)
+     -- d digested
+     dd <- digestExpr c d dd_expectedType
+     return (LambdaExpr c' sym dd)
+digestExpr c (RawFunctionTypeExpr pos a b) et =
+  do assertIsTypeOfTypes et
+     ad <- digestExpr c a typeOfTypes
+     bd <- digestExpr c b typeOfTypes
+     return (FunctionTypeExpr ad bd (Just pos))
+digestExpr c (RawDependentFunctionTypeExpr pos s a b) et =
+  do assertIsTypeOfTypes et
+     ad <- digestExpr c a typeOfTypes
+     c' <- augmentContext c s Nothing ad (Just pos) []
+     sym <- certainly (lookupSymbol c' s)
+     bd <- digestExpr c' b typeOfTypes
+     return (DependentFunctionTypeExpr sym bd (Just pos))
 
 -- Throws an error unless the two exprs match as types.
 assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
@@ -158,6 +163,11 @@ assertTypesMatch c0 e0 t0 c1 e1 t1 =
      if t0ev == t1ev
        then return ()
        else barf (ErrTypeMismatch c0 e0 t0ev c1 e1 t1ev)
+
+assertIsTypeOfTypes :: Expr -> FreeCat ()
+assertIsTypeOfTypes e =
+  assertTypesMatch rootContext (makeUndefined e) e
+                   rootContext (makeUndefined typeOfTypes) typeOfTypes
 
 completeContext :: Context -> FreeCat Context
 completeContext c =

@@ -21,6 +21,7 @@ data Error =
  | ErrExpectedLeadSymbolFoundFunctionType
  | ErrSymbolNotDefined Context (Maybe SourcePos) String
  | ErrAppHeadIsNotFunctionTyped
+ | ErrCannotInferImplicitArgumentValue
  | ErrTypeMismatch Context Expr Expr Context Expr Expr
  | ErrIThoughtThisWasImpossible
  | ErrExtraTypeDeclaration
@@ -356,6 +357,15 @@ s `occursFreeIn` (DependentFunctionTypeExpr s' b _) =
 -- Dealing with expressions
 --
 
+-- Gathers the head of a function application expression.
+applicationHead :: Expr -> FreeCat Expr
+leadSymbol e@(SymbolExpr _ _) = return e
+applicationHead e@(LambdaExpr _ _ _ _) = return e
+applicationHead (AppExpr e0 e1 pos) = applicationHead e0
+applicationHead (FunctionTypeExpr _ _ _) = barf ErrAppHeadIsNotFunctionTyped
+applicationHead (DependentFunctionTypeExpr _ _ _) = barf ErrAppHeadIsNotFunctionTyped
+applicationHead (ImplicitDependencyTypeExpr _ _ _) = barf ErrAppHeadIsNotFunctionTyped
+
 -- Gathers the lead symbol in a normalized application expression.
 leadSymbol :: Expr -> FreeCat Symbol
 leadSymbol (SymbolExpr s pos) = return s
@@ -363,9 +373,16 @@ leadSymbol (AppExpr e0 e1 pos) = leadSymbol e0
 leadSymbol (LambdaExpr _ _ _ _) = barf ErrExpectedLeadSymbolFoundLambda
 leadSymbol (FunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
 leadSymbol (DependentFunctionTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
+leadSymbol (ImplicitDependencyTypeExpr _ _ _) = barf ErrExpectedLeadSymbolFoundFunctionType
 
 domainType :: Error -> Expr -> FreeCat Expr
 domainType err (FunctionTypeExpr a b pos) = return a
 domainType err (DependentFunctionTypeExpr s b pos) = return (definedType s)
 domainType err (ImplicitDependencyTypeExpr s b pos) = return (definedType s)
 domainType err _ = barf err
+
+codomainType :: Expr -> Expr -> FreeCat Expr
+codomainType (FunctionTypeExpr a b) x = a
+codomainType (DependentFunctionTypeExpr s b) x =
+  return (substitute s x b)
+codomainType _ = barf ErrIThoughtThisWasImpossible -- not really, todo describe this error
