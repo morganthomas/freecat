@@ -126,7 +126,9 @@ digestExpr c (RawSymbolExpr pos s) =
 digestExpr c e@(RawAppExpr pos e0 e1) = do
   appHead <- rawApplicationHead e
   case appHead of
-    RawSymbolExpr s -> TODO
+    RawSymbolExpr s ->
+      sym <- lookupSymbol c s
+      TODO
     RawLambdaExpr _ _ -> error "case not implemented yet"
 digestExpr c (RawLambdaExpr pos s t d) =
   do (td, tdType) <- digestExpr c t
