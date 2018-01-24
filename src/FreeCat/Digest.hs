@@ -117,16 +117,17 @@ inferAppType c e0 e0Type e1 e1Type =
    _ -> barf ErrAppHeadIsNotFunctionTyped
 
 -- Assumes all symbols used in RawExpr are defined in Context.
--- Requires the expected type et of the raw expr.
--- Ensures the raw expr's inferred type matches the expected type.
--- Assumes all symbols used in RawExpr are defined in Context.
 -- Returns a pair of the digested expr and its inferred type.
 digestExpr :: Context -> RawExpr -> FreeCat (Expr, Expr)
 digestExpr c (RawSymbolExpr pos s) =
   case lookupSymbol c s of
     Just sym -> return (SymbolExpr sym (Just pos), definedType sym)
     Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
-digestExpr c e@(RawAppExpr pos e0 e1) = TODO -- support argument inference
+digestExpr c e@(RawAppExpr pos e0 e1) = do
+  appHead <- rawApplicationHead e
+  case appHead of
+    RawSymbolExpr s -> TODO
+    RawLambdaExpr _ _ -> error "case not implemented yet"
 digestExpr c (RawLambdaExpr pos s t d) =
   do (td, tdType) <- digestExpr c t
      assertTypesMatch c td tdType rootContext td typeOfTypes

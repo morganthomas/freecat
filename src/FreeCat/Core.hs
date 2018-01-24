@@ -62,6 +62,15 @@ data RawExpr =
 
 type RawPattern = RawExpr
 
+-- Gathers the head of a function application expression.
+rawApplicationHead :: Expr -> FreeCat Expr
+rawApplicationHead e@(RawSymbolExpr _ _) = return e
+rawApplicationHead e@(RawLambdaExpr _ _ _ _) = return e
+rawApplicationHead (RawAppExpr e0 e1 pos) = rawApplicationHead e0
+rawApplicationHead (RawFunctionTypeExpr _ _ _) = barf ErrAppHeadIsNotFunctionTyped
+rawApplicationHead (RawDependentFunctionTypeExpr _ _ _ _) = barf ErrAppHeadIsNotFunctionTyped
+rawApplicationHead (RawImplicitDependencyTypeExpr _ _ _ _) = barf ErrAppHeadIsNotFunctionTyped
+
 rawPatternLeadSymbol :: RawPattern -> RawSymbol
 rawPatternLeadSymbol (RawSymbolExpr pos s) = s
 rawPatternLeadSymbol (RawAppExpr pos p q) = rawPatternLeadSymbol p
@@ -359,7 +368,7 @@ s `occursFreeIn` (DependentFunctionTypeExpr s' b _) =
 
 -- Gathers the head of a function application expression.
 applicationHead :: Expr -> FreeCat Expr
-leadSymbol e@(SymbolExpr _ _) = return e
+applicationHead e@(SymbolExpr _ _) = return e
 applicationHead e@(LambdaExpr _ _ _ _) = return e
 applicationHead (AppExpr e0 e1 pos) = applicationHead e0
 applicationHead (FunctionTypeExpr _ _ _) = barf ErrAppHeadIsNotFunctionTyped
