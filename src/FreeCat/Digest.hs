@@ -166,7 +166,8 @@ digestExpr c (RawImplicitDependencyTypeExpr pos s a b) =
 -- application heads are symbols. Works on the already-defined head symbol
 -- and the digested explicit arguments whose types have been inferred.
 -- Returns a digested application expression with values inferred for
--- the implicit arguments.
+-- the implicit arguments. The implicit argument inference is directed by
+-- the type of the head symbol and the values and types of the explicit arguments.
 inferArguments :: Context -> Symbol -> [(Expr, Expr)] -> FreeCat Expr
 TODO
 
