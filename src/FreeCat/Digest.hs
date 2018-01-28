@@ -129,7 +129,7 @@ digestExpr c e@(RawAppExpr pos e0 e1) = do
     RawSymbolExpr s ->
       sym <- lookupSymbol c s
       explicitArguments <- mapM (digestExpr c) (rawApplicationArguments e)
-      inferArguments c sym explicitArguments -- TODO
+      inferArguments c sym explicitArguments
     RawLambdaExpr _ _ -> error "case not implemented yet"
 digestExpr c (RawLambdaExpr pos s t d) =
   do (td, tdType) <- digestExpr c t
@@ -161,6 +161,14 @@ digestExpr c (RawImplicitDependencyTypeExpr pos s a b) =
      (bd, bdType) <- digestExpr c' b
      assertTypesMatch c' bd bdType rootContext bd typeOfTypes
      return (ImplicitDependencyTypeExpr sym bd (Just pos), typeOfTypes)
+
+-- The core digestion algorithm for function application expressions whose
+-- application heads are symbols. Works on the already-defined head symbol
+-- and the digested explicit arguments whose types have been inferred.
+-- Returns a digested application expression with values inferred for
+-- the implicit arguments.
+inferArguments :: Context -> Symbol -> [(Expr, Expr)] -> FreeCat Expr
+TODO
 
 -- Throws an error unless the two exprs match as types.
 assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
