@@ -100,8 +100,8 @@ type Pattern = Expr
 
 data Expr =
    SymbolExpr Symbol (Maybe SourcePos)
- -- [Expr] is the values of the implicit arguments
- | AppExpr [Expr] Expr Expr (Maybe SourcePos)
+ | AppExpr Expr Expr (Maybe SourcePos)
+ | ImplicitAppExpr Expr Expr (Maybe SourcePos)
  -- Context is the evaluation context for the lambda body
  | LambdaExpr Context Symbol Expr (Maybe SourcePos)
  | FunctionTypeExpr Expr Expr (Maybe SourcePos)

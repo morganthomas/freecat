@@ -169,7 +169,34 @@ digestExpr c (RawImplicitDependencyTypeExpr pos s a b) =
 -- the implicit arguments. The implicit argument inference is directed by
 -- the type of the head symbol and the values and types of the explicit arguments.
 inferArguments :: Context -> Symbol -> [(Expr, Expr)] -> FreeCat Expr
-TODO
+inferArguments c headSym args = do
+  c' <- unifyArgumentTypesWithFunctionType c (definedType headSym) args
+  createApplicationExpr c' (SymbolExpr headSym Nothing) (definedType headSym) args
+
+-- Infers an application expr from an application head expr, the type directing the
+-- argument inference, and a list of explicit arguments and their types. The values
+-- of the implicit arguments will be drawn from the context, looked up by name.
+-- They will be undefined if they don't have values defined in the context.
+createApplicationExpr :: Context -> Expr -> Expr -> [(Expr, Expr)] -> FreeCat Expr
+createApplicationExpr c headExpr (ImplicitDependencyTypeExpr s b _) explicitArgs = do
+  value <- case lookupSymbol c (name s) ->
+    Nothing -> return (makeUndefined (definedType s))
+    Just (Symbol { equations = [Equation _ (SymbolExpr _ _ _) e _] }) -> return e
+  createApplicationExpr c (ImplicitAppExpr headExpr value) b explicitArgs
+createApplicationExpr c headExpr (FunctionTypeExpr a b _) ((arg, argType):args) = do
+  assertTypesMatch c arg argType c arg a
+  createApplicationExpr c (AppExpr headExpr arg) b args
+createApplicationExpr c headExpr (DependentFunctionTypeExpr s a b _) ((arg, argType):args) = do
+  assertTypesMatch c arg argType c arg a
+  createApplicationExpr c (AppExpr headExpr arg) b args
+createApplicationExpr c headExpr _ _ [] = return headExpr
+
+-- Takes a context, a function type, and a list of arguments paired with their types.
+-- Uses this data to infer values for all implicit argument symbols in the
+-- provided function type. Returns a context augmenting the supplied context with
+-- value assignments for the implicit argument symbols whose values could
+-- be inferred, as well as type assignments for all implicit argument symbols.
+unifyArgumentTypesWithFunctionType :: Context -> Expr -> [(Expr,Expr)] -> FreeCat Context
 
 -- Throws an error unless the two exprs match as types.
 assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
