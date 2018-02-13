@@ -26,6 +26,9 @@ data Error =
  | ErrIThoughtThisWasImpossible
  | ErrExtraTypeDeclaration
  | ErrEquationWithoutMatchingTypeDeclaration
+ | ErrWrongNumberOfArguments
+ | ErrCannotUnify
+ | ErrNotAllowed -- TODO: replace with more specific errors
 
 instance Show Error where
   show ErrFunctionTypeOnAppLHS = "Nonsense: function type on left hand side of function application expression."
@@ -132,8 +135,8 @@ data Equation = -- the Context is the evaluation context
 
 type VariableDeclaration = Symbol
 
-constantDefinition :: Symbol -> Expr -> Expr -> Equation
-constantDefinition s t e = Equation rootContext [] (SymbolExpr s Nothing) e Nothing
+constantDefinition :: Symbol -> Expr -> Equation
+constantDefinition s e = Equation rootContext [] (SymbolExpr s Nothing) e Nothing
 
 -- Type : Type
 rootTypeSymbol :: Symbol
@@ -300,6 +303,15 @@ lookupSymbol c s =
   case Map.lookup s (declarations c) of
     Just sym -> Just sym
     Nothing -> Map.lookup s (importedSymbols c)
+
+lookupExactSymbol :: Context -> Symbol -> Maybe Symbol
+lookupExactSymbol c s =
+  case lookupSymbol c (name s) of
+    Just t ->
+      if s == t
+      then Just t
+      else Nothing
+    Nothing -> Nothing
 
 -- Creates a new context which has the given context as parent and has a symbol
 -- with the given name, type, and equations.
