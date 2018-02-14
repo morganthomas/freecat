@@ -100,7 +100,7 @@ digestPattern' c0 (RawAppExpr pos e0 e1) et =
       appType <- inferAppType c2 e0d e0dType e1d e1dType
       return ((AppExpr e0d e1d (Just pos)), appType, c2)
 
--- Infers the type of the function application (AppExpr [] e0 e1 _)
+-- Infers the type of the function application (AppExpr e0 e1 _)
 inferAppType :: Context -> Expr -> Expr -> Expr -> Expr -> FreeCat Expr
 inferAppType c e0 e0Type e1 e1Type =
  case e0Type of
