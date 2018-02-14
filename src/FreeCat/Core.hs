@@ -65,16 +65,16 @@ data RawExpr =
 
 type RawPattern = RawExpr
 
-rawApplicationHead :: Expr -> FreeCat Expr
+rawApplicationHead :: RawExpr -> FreeCat RawExpr
 rawApplicationHead e@(RawSymbolExpr _ _) = return e
 rawApplicationHead e@(RawLambdaExpr _ _ _ _) = return e
-rawApplicationHead (RawAppExpr e0 e1 pos) = rawApplicationHead e0
+rawApplicationHead (RawAppExpr pos e0 e1) = rawApplicationHead e0
 rawApplicationHead (RawFunctionTypeExpr _ _ _) = barf ErrAppHeadIsNotFunctionTyped
 rawApplicationHead (RawDependentFunctionTypeExpr _ _ _ _) = barf ErrAppHeadIsNotFunctionTyped
 rawApplicationHead (RawImplicitDependencyTypeExpr _ _ _ _) = barf ErrAppHeadIsNotFunctionTyped
 
-rawApplicationArguments :: Expr -> [Expr]
-rawApplicationArguments (RawAppExpr e0 e1) = rawApplicationArguments e0 ++ [e1] -- TODO: less consing
+rawApplicationArguments :: RawExpr -> [RawExpr]
+rawApplicationArguments (RawAppExpr pos e0 e1) = rawApplicationArguments e0 ++ [e1] -- TODO: less consing
 rawApplicationArguments x = []
 
 rawPatternLeadSymbol :: RawPattern -> RawSymbol
@@ -186,7 +186,7 @@ rootContext =
    declarations = Map.fromList [
     (rawTypeSymbol, rootTypeSymbol),
     (rawUndefinedSymbol, undefinedSymbol)
-   ]
+   ],
    importedSymbols = Map.empty
  }
 
@@ -409,7 +409,13 @@ domainType err (ImplicitDependencyTypeExpr s b pos) = return (definedType s)
 domainType err _ = barf err
 
 codomainType :: Expr -> Expr -> FreeCat Expr
-codomainType (FunctionTypeExpr a b) x = a
-codomainType (DependentFunctionTypeExpr s b) x =
-  return (substitute s x b)
-codomainType _ = barf ErrIThoughtThisWasImpossible -- not really, todo describe this error
+codomainType (FunctionTypeExpr a b _) x = return a
+codomainType (DependentFunctionTypeExpr s b _) x = return (substitute s x b)
+codomainType _ _ = barf ErrIThoughtThisWasImpossible -- not really, todo describe this error
+
+-- Gathers the types of the explicit arguments given a function type
+explicitArgumentTypes :: Expr -> [Expr]
+explicitArgumentTypes (FunctionTypeExpr a b _) = (a : explicitArgumentTypes b)
+explicitArgumentTypes (DependentFunctionTypeExpr s@(Symbol { definedType = a }) b _) = (a  : explicitArgumentTypes b)
+explicitArgumentTypes (ImplicitDependencyTypeExpr s b _) = explicitArgumentTypes b
+explicitArgumentTypes _ = []
