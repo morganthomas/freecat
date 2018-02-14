@@ -152,6 +152,9 @@ rootTypeSymbol =
 typeOfTypes :: Expr
 typeOfTypes = SymbolExpr rootTypeSymbol Nothing
 
+rawUndefinedSymbol :: String
+rawUndefinedSymbol = "undefined"
+
 -- undefined : {a : Type} -> a
 undefinedSymbol :: Symbol
 undefinedSymbol =
@@ -164,7 +167,7 @@ undefinedSymbol =
           }
   in
     Symbol {
-      name = "undefined",
+      name = rawUndefinedSymbol,
       definedType = ImplicitDependencyTypeExpr a (SymbolExpr a Nothing) Nothing,
       declarationSourcePos = Nothing,
       equations = [],
@@ -182,7 +185,7 @@ rootContext =
    parentContext = Nothing,
    declarations = Map.fromList [
     (rawTypeSymbol, rootTypeSymbol),
-    ("undefined", undefinedSymbol)
+    (rawUndefinedSymbol, undefinedSymbol)
    ]
    importedSymbols = Map.empty
  }
