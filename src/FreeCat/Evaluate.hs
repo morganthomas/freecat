@@ -8,6 +8,7 @@ module FreeCat.Evaluate where
 
 import Data.Map as Map
 import FreeCat.Core
+import Text.Parsec (SourcePos)
 
 evaluate :: Context -> Expr -> FreeCat Expr
 evaluate c e@(SymbolExpr s pos) = do
@@ -17,36 +18,46 @@ evaluate c e@(SymbolExpr s pos) = do
       case equations s' of
         (Equation c' [] (SymbolExpr _ _) e _ : _) -> evaluate c' e
         _ -> return (SymbolExpr s pos)
-evaluate c e@(AppExpr e0 e1 pos) =
+evaluate c e@(AppExpr e0 e1 pos) = evaluateApplication c e0 e1
+evaluate c e@(ImplicitAppExpr e0 e1 pos) = evaluateApplication c e0 e1
+evaluate c0 e@(LambdaExpr c1 s d pos) = return e
+evaluate c e@(FunctionTypeExpr a b pos) =
+  do ae <- evaluate c a
+     be <- evaluate c b
+     return (FunctionTypeExpr ae be pos)
+evaluate c e@(DependentFunctionTypeExpr s b pos) =
+  evaluateDependentFunctionType DependentFunctionTypeExpr c s b
+evaluate c e@(ImplicitDependencyTypeExpr s b pos) =
+  evaluateDependentFunctionType ImplicitDependencyTypeExpr c s b
+
+evaluateApplication :: Context -> Expr -> Expr -> FreeCat Expr
+evaluateApplication c e0 e1 =
   do e0e <- evaluate c e0
      e1e <- evaluate c e1
      case e0e of
       SymbolExpr s pos ->
         case lookupSymbol c (name s) of
-          Nothing -> return (AppExpr e0e e1e pos)
-          Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e pos)
+          Nothing -> return (AppExpr e0e e1e Nothing)
+          Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e Nothing)
       AppExpr _ _ pos ->
         do s <- leadSymbol e0e
            case lookupSymbol c (name s) of
-             Nothing -> return (AppExpr e0e e1e pos)
-             Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e pos)
+             Nothing -> return (AppExpr e0e e1e Nothing)
+             Just s -> evaluatePatternMatch (equations s) (AppExpr e0e e1e Nothing)
       LambdaExpr c' s d pos ->
         do ec' <- augmentContext c' (name s) Nothing
               (definedType s) Nothing [constantDefinition s e1e]
            evaluate ec' d
       FunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
       DependentFunctionTypeExpr _ _ _ -> barf ErrFunctionTypeOnAppLHS
-evaluate c0 e@(LambdaExpr c1 s d pos) = return e
-evaluate c e@(FunctionTypeExpr a b pos) =
-  do ae <- evaluate c a
-     be <- evaluate c b
-     return (FunctionTypeExpr ae be pos)
-evaluate c e@(DependentFunctionTypeExpr s b pos) = do
+
+evaluateDependentFunctionType :: (Symbol -> Expr -> Maybe SourcePos -> Expr) -> Context -> Symbol -> Expr -> FreeCat Expr
+evaluateDependentFunctionType ctor c s b = do
   ae <- evaluate c (definedType s)
   c' <- augmentContext c (name s) Nothing ae Nothing []
   be <- evaluate c' b
   s' <- certainly (lookupSymbol c' (name s))
-  return (DependentFunctionTypeExpr s' be pos)
+  return (ctor s' be Nothing)
 
 -- Checks if the given expr matches any of the given pattern match equations.
 -- Returns the result of evaluating the expr against the first matching definition
