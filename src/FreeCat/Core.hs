@@ -27,7 +27,7 @@ data Error =
  | ErrExtraTypeDeclaration
  | ErrEquationWithoutMatchingTypeDeclaration
  | ErrWrongNumberOfArguments
- | ErrCannotUnify
+ | ErrCannotUnify (Expr, Expr) (Expr, Expr)
  | ErrNotAllowed -- TODO: replace with more specific errors
 
 instance Show Error where
@@ -46,7 +46,7 @@ instance Show Error where
   show ErrExtraTypeDeclaration = "Illegal: declared a type for a symbol twice in one context."
   show ErrEquationWithoutMatchingTypeDeclaration = "Illegal: declared a pattern matching equation without declaring the lead symbol's type first."
   show ErrWrongNumberOfArguments = "Wrong number of arguments"
-  show ErrCannotUnify = "Cannot unify"
+  show (ErrCannotUnify (e0, e1) (e0orig, e1orig)) = "Cannot unify " ++ show e0 ++ " with " ++ show e1 ++ " which occurred while unifying " ++ show e0orig ++ " with " ++ show e1orig
   show ErrNotAllowed = "Not allowed (TODO: more useful error message)"
 
 --

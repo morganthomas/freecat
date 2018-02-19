@@ -245,40 +245,45 @@ inferType c (ImplicitDependencyTypeExpr _ _ _) = return typeOfTypes
 -- an error if it finds divergence between the fst and snd other than the
 -- occurrence of a free variable in fst where there is none in snd.
 unifyExprWithExpr :: Context -> (Expr, Expr) -> FreeCat Context
-unifyExprWithExpr c (SymbolExpr s _, e) =
+unifyExprWithExpr c es = unifyExprWithExpr' c es es
+
+-- The second supplied expr pair is the overall expr pair being unified,
+-- for error reporting.
+unifyExprWithExpr' :: Context -> (Expr, Expr) -> (Expr, Expr) -> FreeCat Context
+unifyExprWithExpr' c es@(SymbolExpr s _, e) esOrig =
   case lookupExactSymbol c s of
     Just s' ->
       case e of
         SymbolExpr t _ ->
           if s == t
             then return c
-            else barf ErrCannotUnify
-        _ -> barf ErrCannotUnify
+            else barf (ErrCannotUnify es esOrig)
+        _ -> barf (ErrCannotUnify es esOrig)
     Nothing -> do
       -- s is a free variable, so define it by unification with e
       t <- inferType c e
       augmentContext c (name s) (Just $ nativeContext s) t Nothing [constantDefinition s e]
-unifyExprWithExpr c (AppExpr f x _, AppExpr f' x' _) = do
-  c' <- unifyExprWithExpr c (f, f')
-  unifyExprWithExpr c' (x, x')
-unifyExprWithExpr c (ImplicitAppExpr f x _, ImplicitAppExpr f' x' _) = do
-  c' <- unifyExprWithExpr c (f, f')
-  unifyExprWithExpr c' (x, x')
-unifyExprWithExpr c (LambdaExpr ctx s@(Symbol { definedType = t }) def _,
-                     LambdaExpr ctx' s'@(Symbol { definedType = t' }) def' _) = do
-  c' <- unifyExprWithExpr c (t, t')
-  unifyExprWithExpr c' (def, def')
-unifyExprWithExpr c (FunctionTypeExpr a b _, FunctionTypeExpr a' b' _) = do
-  c' <- unifyExprWithExpr c (a, a')
-  unifyExprWithExpr c' (b, b')
-unifyExprWithExpr c (DependentFunctionTypeExpr s@(Symbol { definedType = a }) b _,
-                     DependentFunctionTypeExpr s'@(Symbol { definedType = a' }) b' _) = do
-  c' <- unifyExprWithExpr c (a, a')
-  unifyExprWithExpr c' (b, b')
-unifyExprWithExpr c (ImplicitDependencyTypeExpr s@(Symbol { definedType = a }) b _,
-                     ImplicitDependencyTypeExpr s'@(Symbol { definedType = a' }) b' _) = do
-  c' <- unifyExprWithExpr c (a, a')
-  unifyExprWithExpr c' (b, b')
+unifyExprWithExpr' c (AppExpr f x _, AppExpr f' x' _) esOrig = do
+  c' <- unifyExprWithExpr' c (f, f') esOrig
+  unifyExprWithExpr' c' (x, x') esOrig
+unifyExprWithExpr' c (ImplicitAppExpr f x _, ImplicitAppExpr f' x' _) esOrig = do
+  c' <- unifyExprWithExpr' c (f, f') esOrig
+  unifyExprWithExpr' c' (x, x') esOrig
+unifyExprWithExpr' c (LambdaExpr ctx s@(Symbol { definedType = t }) def _,
+                     LambdaExpr ctx' s'@(Symbol { definedType = t' }) def' _) esOrig = do
+  c' <- unifyExprWithExpr' c (t, t') esOrig
+  unifyExprWithExpr' c' (def, def') esOrig
+unifyExprWithExpr' c (FunctionTypeExpr a b _, FunctionTypeExpr a' b' _) esOrig = do
+  c' <- unifyExprWithExpr' c (a, a') esOrig
+  unifyExprWithExpr' c' (b, b') esOrig
+unifyExprWithExpr' c (DependentFunctionTypeExpr s@(Symbol { definedType = a }) b _,
+                     DependentFunctionTypeExpr s'@(Symbol { definedType = a' }) b' _) esOrig = do
+  c' <- unifyExprWithExpr' c (a, a') esOrig
+  unifyExprWithExpr' c' (b, b') esOrig
+unifyExprWithExpr' c (ImplicitDependencyTypeExpr s@(Symbol { definedType = a }) b _,
+                     ImplicitDependencyTypeExpr s'@(Symbol { definedType = a' }) b' _) esOrig = do
+  c' <- unifyExprWithExpr' c (a, a') esOrig
+  unifyExprWithExpr' c' (b, b') esOrig
 
 -- Throws an error unless the two exprs match as types.
 assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
