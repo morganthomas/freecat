@@ -45,6 +45,9 @@ instance Show Error where
   show ErrIThoughtThisWasImpossible = "Something impossible has occurred. There is a bug in FreeCat.Core."
   show ErrExtraTypeDeclaration = "Illegal: declared a type for a symbol twice in one context."
   show ErrEquationWithoutMatchingTypeDeclaration = "Illegal: declared a pattern matching equation without declaring the lead symbol's type first."
+  show ErrWrongNumberOfArguments = "Wrong number of arguments"
+  show ErrCannotUnify = "Cannot unify"
+  show ErrNotAllowed = "Not allowed (TODO: more useful error message)"
 
 --
 -- Parse trees
@@ -246,6 +249,7 @@ showVariableDeclarationList (decl:decls) =
 instance Show Expr where
   show (SymbolExpr s pos) = name s
   show (AppExpr f g pos) = "(" ++ show f ++ " " ++ show g ++ ")"
+  show (ImplicitAppExpr f g pos) = "{" ++ show f ++ " " ++ show g ++ "}"
   show (LambdaExpr c s e pos) = "(\\" ++ name s ++ " : " ++ show (definedType s) ++ " => " ++ show e ++ ")"
   show (FunctionTypeExpr a b pos) = "(" ++ show a ++ " -> " ++ show b ++ ")"
   show (DependentFunctionTypeExpr s b pos) = "((" ++ name s ++ " : " ++ show (definedType s) ++ ") -> " ++ show b ++ ")"
