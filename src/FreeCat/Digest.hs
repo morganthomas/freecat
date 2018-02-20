@@ -129,7 +129,7 @@ digestExpr c e@(RawAppExpr pos e0 e1) = do
     RawSymbolExpr _ s -> do
       sym <- certainly $ lookupSymbol c s
       explicitArguments <- mapM (digestExpr c) (rawApplicationArguments e)
-      inferArguments c sym explicitArguments
+      inferArguments e c sym explicitArguments
     RawLambdaExpr _ _ _ _ -> error "case not implemented yet"
 digestExpr c (RawLambdaExpr pos s t d) =
   do (td, tdType) <- digestExpr c t
@@ -168,9 +168,10 @@ digestExpr c (RawImplicitDependencyTypeExpr pos s a b) =
 -- Returns a digested application expression with values inferred for
 -- the implicit arguments. The implicit argument inference is directed by
 -- the type of the head symbol and the values and types of the explicit arguments.
-inferArguments :: Context -> Symbol -> [(Expr, Expr)] -> FreeCat (Expr, Expr)
-inferArguments c headSym args = do
-  c' <- unifyArgumentTypesWithFunctionType c (definedType headSym) args
+-- appE is passed for error reporting only.
+inferArguments :: RawExpr -> Context -> Symbol -> [(Expr, Expr)] -> FreeCat (Expr, Expr)
+inferArguments appE c headSym args = do
+  c' <- unifyArgumentTypesWithFunctionType appE c (definedType headSym) args
   e <- createApplicationExpr c' (SymbolExpr headSym Nothing) (definedType headSym) args
   t <- inferType c e
   return (e, t)
@@ -198,11 +199,12 @@ createApplicationExpr c headExpr _ [] = return headExpr
 -- provided function type. Returns a context augmenting the supplied context with
 -- value assignments for the implicit argument symbols whose values could
 -- be inferred, as well as type assignments for all implicit argument symbols.
-unifyArgumentTypesWithFunctionType :: Context -> Expr -> [(Expr,Expr)] -> FreeCat Context
-unifyArgumentTypesWithFunctionType c fType args = do
+-- appE is for error reporting: the .
+unifyArgumentTypesWithFunctionType :: RawExpr -> Context -> Expr -> [(Expr,Expr)] -> FreeCat Context
+unifyArgumentTypesWithFunctionType appE c fType args = do
   argExpectedTypes <- return $ explicitArgumentTypes fType
   if length argExpectedTypes == length args then do
-    result <- foldM unifyExprWithExpr c (zip argExpectedTypes (snd (unzip args)))
+    result <- foldM (unifyExprWithExpr appE) c (zip argExpectedTypes (snd (unzip args)))
     -- check the resulting types of the implicit arguments are correct
     return result
   else barf ErrWrongNumberOfArguments
@@ -244,46 +246,48 @@ inferType c (ImplicitDependencyTypeExpr _ _ _) = return typeOfTypes
 -- equating each free variable in the fst with its correlate in the snd. Throws
 -- an error if it finds divergence between the fst and snd other than the
 -- occurrence of a free variable in fst where there is none in snd.
-unifyExprWithExpr :: Context -> (Expr, Expr) -> FreeCat Context
-unifyExprWithExpr c es = unifyExprWithExpr' c es es
+-- appE, passed for error reporting, is the application expression where
+-- we are currently trying to do argument inference.
+unifyExprWithExpr :: RawExpr -> Context -> (Expr, Expr) -> FreeCat Context
+unifyExprWithExpr appE c es = unifyExprWithExpr' appE c es es
 
 -- The second supplied expr pair is the overall expr pair being unified,
 -- for error reporting.
-unifyExprWithExpr' :: Context -> (Expr, Expr) -> (Expr, Expr) -> FreeCat Context
-unifyExprWithExpr' c es@(SymbolExpr s _, e) esOrig =
+unifyExprWithExpr' :: RawExpr -> Context -> (Expr, Expr) -> (Expr, Expr) -> FreeCat Context
+unifyExprWithExpr' appE c es@(SymbolExpr s _, e) esOrig =
   case lookupExactSymbol c s of
     Just s' ->
       case e of
         SymbolExpr t _ ->
           if s == t
             then return c
-            else barf (ErrCannotUnify es esOrig)
-        _ -> barf (ErrCannotUnify es esOrig)
+            else barf (ErrCannotUnify es esOrig appE)
+        _ -> barf (ErrCannotUnify es esOrig appE)
     Nothing -> do
       -- s is a free variable, so define it by unification with e
       t <- inferType c e
       augmentContext c (name s) (Just $ nativeContext s) t Nothing [constantDefinition s e]
-unifyExprWithExpr' c (AppExpr f x _, AppExpr f' x' _) esOrig = do
-  c' <- unifyExprWithExpr' c (f, f') esOrig
-  unifyExprWithExpr' c' (x, x') esOrig
-unifyExprWithExpr' c (ImplicitAppExpr f x _, ImplicitAppExpr f' x' _) esOrig = do
-  c' <- unifyExprWithExpr' c (f, f') esOrig
-  unifyExprWithExpr' c' (x, x') esOrig
-unifyExprWithExpr' c (LambdaExpr ctx s@(Symbol { definedType = t }) def _,
+unifyExprWithExpr' appE c (AppExpr f x _, AppExpr f' x' _) esOrig = do
+  c' <- unifyExprWithExpr' appE c (f, f') esOrig
+  unifyExprWithExpr' appE c' (x, x') esOrig
+unifyExprWithExpr' appE c (ImplicitAppExpr f x _, ImplicitAppExpr f' x' _) esOrig = do
+  c' <- unifyExprWithExpr' appE c (f, f') esOrig
+  unifyExprWithExpr' appE c' (x, x') esOrig
+unifyExprWithExpr' appE c (LambdaExpr ctx s@(Symbol { definedType = t }) def _,
                      LambdaExpr ctx' s'@(Symbol { definedType = t' }) def' _) esOrig = do
-  c' <- unifyExprWithExpr' c (t, t') esOrig
-  unifyExprWithExpr' c' (def, def') esOrig
-unifyExprWithExpr' c (FunctionTypeExpr a b _, FunctionTypeExpr a' b' _) esOrig = do
-  c' <- unifyExprWithExpr' c (a, a') esOrig
-  unifyExprWithExpr' c' (b, b') esOrig
-unifyExprWithExpr' c (DependentFunctionTypeExpr s@(Symbol { definedType = a }) b _,
+  c' <- unifyExprWithExpr' appE c (t, t') esOrig
+  unifyExprWithExpr' appE c' (def, def') esOrig
+unifyExprWithExpr' appE c (FunctionTypeExpr a b _, FunctionTypeExpr a' b' _) esOrig = do
+  c' <- unifyExprWithExpr' appE c (a, a') esOrig
+  unifyExprWithExpr' appE c' (b, b') esOrig
+unifyExprWithExpr' appE c (DependentFunctionTypeExpr s@(Symbol { definedType = a }) b _,
                      DependentFunctionTypeExpr s'@(Symbol { definedType = a' }) b' _) esOrig = do
-  c' <- unifyExprWithExpr' c (a, a') esOrig
-  unifyExprWithExpr' c' (b, b') esOrig
-unifyExprWithExpr' c (ImplicitDependencyTypeExpr s@(Symbol { definedType = a }) b _,
+  c' <- unifyExprWithExpr' appE c (a, a') esOrig
+  unifyExprWithExpr' appE c' (b, b') esOrig
+unifyExprWithExpr' appE c (ImplicitDependencyTypeExpr s@(Symbol { definedType = a }) b _,
                      ImplicitDependencyTypeExpr s'@(Symbol { definedType = a' }) b' _) esOrig = do
-  c' <- unifyExprWithExpr' c (a, a') esOrig
-  unifyExprWithExpr' c' (b, b') esOrig
+  c' <- unifyExprWithExpr' appE c (a, a') esOrig
+  unifyExprWithExpr' appE c' (b, b') esOrig
 
 -- Throws an error unless the two exprs match as types.
 assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()

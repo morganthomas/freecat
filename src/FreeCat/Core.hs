@@ -27,7 +27,7 @@ data Error =
  | ErrExtraTypeDeclaration
  | ErrEquationWithoutMatchingTypeDeclaration
  | ErrWrongNumberOfArguments
- | ErrCannotUnify (Expr, Expr) (Expr, Expr)
+ | ErrCannotUnify (Expr, Expr) (Expr, Expr) RawExpr
  | ErrNotAllowed -- TODO: replace with more specific errors
 
 instance Show Error where
@@ -46,7 +46,9 @@ instance Show Error where
   show ErrExtraTypeDeclaration = "Illegal: declared a type for a symbol twice in one context."
   show ErrEquationWithoutMatchingTypeDeclaration = "Illegal: declared a pattern matching equation without declaring the lead symbol's type first."
   show ErrWrongNumberOfArguments = "Wrong number of arguments"
-  show (ErrCannotUnify (e0, e1) (e0orig, e1orig)) = "Cannot unify " ++ show e0 ++ " with " ++ show e1 ++ " which occurred while unifying " ++ show e0orig ++ " with " ++ show e1orig
+  show (ErrCannotUnify (e0, e1) (e0orig, e1orig) appE) = "Cannot unify " ++ show e0 ++ " with " ++ show e1
+     ++ " which occurred while trying to unify " ++ show e0orig ++ " with " ++ show e1orig
+     ++ " which came about while trying to infer the implicit argument values in " ++ show appE
   show ErrNotAllowed = "Not allowed (TODO: more useful error message)"
 
 --
@@ -67,6 +69,25 @@ data RawExpr =
  | RawImplicitDependencyTypeExpr SourcePos RawSymbol RawExpr RawExpr
 
 type RawPattern = RawExpr
+
+rawExprPos :: RawExpr -> SourcePos
+rawExprPos (RawSymbolExpr pos _) = pos
+rawExprPos (RawAppExpr pos _ _) = pos
+rawExprPos (RawLambdaExpr pos _ _ _) = pos
+rawExprPos (RawFunctionTypeExpr pos _ _) = pos
+rawExprPos (RawDependentFunctionTypeExpr pos _ _ _) = pos
+rawExprPos (RawImplicitDependencyTypeExpr pos _ _ _) = pos
+
+instance Show RawExpr where
+  show e = showJustRawExpr e ++ " [" ++ show (rawExprPos e) ++ "]"
+
+showJustRawExpr :: RawExpr -> String
+showJustRawExpr (RawSymbolExpr pos s) = s
+showJustRawExpr (RawAppExpr pos e0 e1) = "(" ++ showJustRawExpr e0 ++ " " ++ showJustRawExpr e1 ++ ")"
+showJustRawExpr (RawLambdaExpr pos s a d) = "(\\" ++ s ++ " : " ++ showJustRawExpr a ++ " => " ++ showJustRawExpr d ++ ")"
+showJustRawExpr (RawFunctionTypeExpr pos a b) = "(" ++ showJustRawExpr a ++ " -> " ++ showJustRawExpr b ++ ")"
+showJustRawExpr (RawDependentFunctionTypeExpr pos s a b) = "((" ++ s ++ " : " ++ showJustRawExpr a ++ ") -> " ++ showJustRawExpr b ++ ")"
+showJustRawExpr (RawImplicitDependencyTypeExpr pos s a b) = "({" ++ s ++ " : " ++ showJustRawExpr a ++ "} -> " ++ showJustRawExpr b ++ ")"
 
 rawApplicationHead :: RawExpr -> FreeCat RawExpr
 rawApplicationHead e@(RawSymbolExpr _ _) = return e
