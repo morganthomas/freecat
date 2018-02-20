@@ -284,6 +284,14 @@ unifyExprWithExpr' appE c (DependentFunctionTypeExpr s@(Symbol { definedType = a
                      DependentFunctionTypeExpr s'@(Symbol { definedType = a' }) b' _) esOrig = do
   c' <- unifyExprWithExpr' appE c (a, a') esOrig
   unifyExprWithExpr' appE c' (b, b') esOrig
+unifyExprWithExpr' appE c (DependentFunctionTypeExpr s@(Symbol { definedType = a }) b _,
+                     FunctionTypeExpr a' b' _) esOrig = do
+  c' <- unifyExprWithExpr' appE c (a, a') esOrig
+  unifyExprWithExpr' appE c' (b, b') esOrig
+unifyExprWithExpr' appE c (FunctionTypeExpr a b _,
+                     DependentFunctionTypeExpr s'@(Symbol { definedType = a' }) b' _) esOrig = do
+  c' <- unifyExprWithExpr' appE c (a, a') esOrig
+  unifyExprWithExpr' appE c' (b, b') esOrig
 unifyExprWithExpr' appE c (ImplicitDependencyTypeExpr s@(Symbol { definedType = a }) b _,
                      ImplicitDependencyTypeExpr s'@(Symbol { definedType = a' }) b' _) esOrig = do
   c' <- unifyExprWithExpr' appE c (a, a') esOrig
