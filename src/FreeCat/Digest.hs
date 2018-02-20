@@ -262,7 +262,7 @@ unifyExprWithExpr' appE c es@(e, SymbolExpr s _) esOrig =
           if def == e
             then return c
             else barf (ErrCannotUnify es esOrig appE)
-        _ -> barf ErrIThoughtThisWasImpossible
+        _ -> return c
     Nothing -> do
       -- s is a free variable, so define it by unification with e
       t <- inferType c e
@@ -288,6 +288,7 @@ unifyExprWithExpr' appE c (ImplicitDependencyTypeExpr s@(Symbol { definedType = 
                      ImplicitDependencyTypeExpr s'@(Symbol { definedType = a' }) b' _) esOrig = do
   c' <- unifyExprWithExpr' appE c (a, a') esOrig
   unifyExprWithExpr' appE c' (b, b') esOrig
+unifyExprWithExpr' appE c es esOrig = barf (ErrCannotUnify es esOrig appE)
 
 -- Throws an error unless the two exprs match as types.
 assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
