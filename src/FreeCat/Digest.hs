@@ -205,7 +205,7 @@ unifyArgumentTypesWithFunctionType appE c fType args = do
   argExpectedTypes <- return $ explicitArgumentTypes fType
   if length argExpectedTypes == length args then do
     result <- foldM (unifyExprWithExpr appE) c (zip argExpectedTypes (snd (unzip args)))
-    -- check the resulting types of the implicit arguments are correct
+    -- TODO: check the resulting types of the implicit arguments are correct
     return result
   else barf ErrWrongNumberOfArguments
 
