@@ -243,9 +243,9 @@ unifyArgumentTypesWithFunctionType appE c fType args = do
   else barf ErrWrongNumberOfArguments
 
 -- Unifies the fst of the expr pair with the snd, augmenting the context by
--- equating each free variable in the fst with its correlate in the snd. Throws
+-- equating each free variable in the snd with its correlate in the fst. Throws
 -- an error if it finds divergence between the fst and snd other than the
--- occurrence of a free variable in fst where there is none in snd.
+-- occurrence of a free variable in snd where there is none in fst.
 -- appE, passed for error reporting, is the application expression where
 -- we are currently trying to do argument inference.
 unifyExprWithExpr :: RawExpr -> Context -> (Expr, Expr) -> FreeCat Context
@@ -254,16 +254,15 @@ unifyExprWithExpr appE c es = unifyExprWithExpr' appE c es es
 -- The second supplied expr pair is the overall expr pair being unified,
 -- for error reporting.
 unifyExprWithExpr' :: RawExpr -> Context -> (Expr, Expr) -> (Expr, Expr) -> FreeCat Context
-unifyExprWithExpr' appE c es@(SymbolExpr s _, e) esOrig =
+unifyExprWithExpr' appE c es@(e, SymbolExpr s _) esOrig =
   case lookupExactSymbol c s of
-    Just s' -> do
-      eEv <- evaluate c e
-      case eEv of
-        SymbolExpr t _ -> do
-          if s == t
+    Just _ ->
+      case equations s of
+        [Equation c [] (SymbolExpr _ _) def pos] ->
+          if def == e
             then return c
             else barf (ErrCannotUnify es esOrig appE)
-        _ -> barf (ErrCannotUnify es esOrig appE)
+        _ -> barf ErrIThoughtThisWasImpossible
     Nothing -> do
       -- s is a free variable, so define it by unification with e
       t <- inferType c e
