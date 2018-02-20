@@ -61,7 +61,7 @@ Type theory is basically a theoretical approach to studying sets, which can be d
 
 There are other interesting differences between type theory and classical set theory. In classical set theory, every object is an element of infinitely many sets, whereas in many versions of type theory (FreeCat included), every object is an element of at most one set (i.e. type).
 
-Also, classical set theory includes the principle of extensionality, which states that if two sets have exactly the same elements, then they are the same set. Type theory frequently does not include the principle of extensionality. In most computer implementations of type theory, the principle of extensionality is not included, or it's trivially true because no two distinct sets have any elements in common.
+Also, classical set theory includes the principle of extensionality, which states that if two sets have exactly the same elements, then they are the same set. Type theory frequently does not include the principle of extensionality. In most computer implementations of type theory, the principle of extensionality is not included, or it's trivially true because no two distinct sets have any elements in common. The latter is the case for FreeCat. In FreeCat, relative to any context, every expression (object) is a member of a unique type (set).
 
 Here is a further important difference between type theory and classical set theory. Classical set theory is based on classical logic, most often first-order logic. The classical approach to logic and set theory defines logical rules of inference, such as those of first-order logic, and axioms about sets, such as those of ZFC. When combined they let you do math, once you've defined every mathematical concept in terms of sets. Type theory, on the other hand, simply defines rules for talking about types, and the rules of logic can be derived from these rules via the Curry-Howard isomorphism. Whereas classical set theory is founded on logic, type theory stands alone and can be used as a foundation for logic.
 
@@ -75,7 +75,7 @@ Intuitionism is a subfield or paradigm of constructive math. Speaking generally 
 
 Constructive math does not necessarily restrict its attention to finite objects only. There are a wide variety of ways of understanding the notion of constructive math, and the widest variety is in the ways of understanding constructive math which assume that constructive math can study infinite things.
 
-The varieties of type theory which are most relevant to technology are constructive type theories. What it means for a type theory to be constructive is a subtle question to which many answers are possible. For purposes of intuition, I lean on the intuitionist notion of mental construction. Constructive type theory, I'll say, is only concerned with objects which can be mentally constructed to any desired degree of detail, as well as realized in computer implementations. Roughly, constructive type theory (conceived this way) can talk about finite objects, countably infinite types, and infinite objects which can be described by means of (partial) computable functions. For example, constructive type theory can talk about the type of integers, and the type of (partial computable) functions from integers to integers.
+The varieties of type theory which are most relevant to technology are constructive type theories. What it means for a type theory to be constructive is a subtle question to which many answers are possible. For purposes of intuition, I lean on the intuitionist notion of mental construction. Constructive type theory, I'll say, is only concerned with objects which can be mentally constructed to any desired degree of detail, as well as realized in computer implementations. Roughly, constructive type theory (conceived this way) can talk about finite objects, countably infinite types, and infinite objects which can be described by means of (partial) computable functions. For example, constructive type theory can talk about the type of integers, the type of (partial computable) functions from integers to integers, and computable ordinal numbers.
 
 The real numbers are an example of something constructive type theory can't talk about. There are uncountably many real numbers. If you had a computer with infinite memory and infinite computation time, such a computer could not represent and do arithmetic on all real numbers. That statement assumes the hypothetical infinite computer is built in something resembling a conventional manner: something like an infinitely large circuit board whose circuits are of uniform density. Actual computers have only finite memory and computation time. Uncountably infinite sets like the real numbers are far beyond what actual computers can fathom. Therefore they are beyond the realm of constructive type theory as I'm conceiving it.
 
@@ -103,11 +103,11 @@ Practical typed functional programming languages tend to be logically inconsiste
 
 There are some good reasons to make a practical programming language inconsistent or potentially inconsistent. For example, a language is potentially inconsistent if you are able to tell the implementation to assume that something is true when you haven't proven it. One important reason to want this capability is to be able to compile a program which is missing a proof you don't yet understand how to construct or don't have time to construct.
 
-Another reason to allow a programming language to be inconsistent is that the restrictions which type theorists impose to avoid logical inconsistency tend to prevent some ideas from being expressed.
+Another reason to allow a programming language to be inconsistent is that the restrictions which type theorists impose to avoid logical inconsistency tend to prevent some ideas from being expressed: e.g., the type of all types, the category of all categories, the set of all sets, the category of all topological spaces, etc.
 
 There is an interesting disconnect here. Type theorists usually study consistent type theories. Designers of practical typed functional programming languages tend to construct inconsistent languages, and there seem to be some good reasons for that. Yet language designers who rely on type theory have tended to base their work on consistent type theories, even when the languages they design are inconsistent in the end. Arguably this leads to a worst of both worlds situation, where you have restrictions on what you can express which are intended to prevent inconsistency, but you also have the potential of inconsistency.
 
-FreeCat is based on the approach of rethinking type theory from the beginning with the assumption that it's not necessary to take steps to prevent the possibility of inconsistency. Of course it will be useful to have tools to try to discover inconsistency, or to rule out inconsistency in cases where this is practical and desirable. But FreeCat's core type theory doesn't contain restrictions designed to prevent paradoxes. This simplifies the core type theory and language design, and the hypothesis is that this will lead to substantial additional simplifications further down the road.
+FreeCat is based on the approach of rethinking type theory from the beginning with the assumption that it's not necessary to take steps to prevent the possibility of inconsistency. Of course it will be useful to have tools to try to discover inconsistency, or to rule out inconsistency in cases where this is practical and desirable. But FreeCat's core type theory doesn't contain restrictions designed to prevent paradoxes. This simplifies the core type theory and language design, and the hypothesis is that this will lead to substantial additional simplifications further down the road, with remarkably little practical risk stemming from the decision to allow paradoxes.
 
 The previous statements locate FreeCat in the space of conceptual paradigms discussed so far. FreeCat is a pure typed functional programming language and an approach to the foundations of math. It is founded on a form of inconsistent constructive type theory.
 
@@ -137,11 +137,11 @@ Objects in FreeCat are represented by expressions. For all practical purposes, i
 
 Functions are a fundamental class of object. A function maps objects of some type to objects of other types. The type of a function's output can be dependent on the object it receives as input. In other words, FreeCat is a dependently typed language.
 
-Functions are defined by pattern matching equations. These equations express rules stating that expressions of given shapes can be replaced by other, dependent expressions. A function can have different equations defined for it in different contexts. A lambda expression can be thought of as having exactly one pattern matching equation.
+Functions are defined by pattern matching equations. These equations express rules stating that expressions of given shapes (patterns) can be replaced by other expressions (definitions), which may reference variables in their associated patterns. A function can have different equations defined for it in different contexts. A lambda expression can be thought of as having exactly one pattern matching equation.
 
 A constructor is a function which has no pattern matching equations defined. Whether a function is a constructor or not can be dependent on the context.
 
-FreeCat expressions are evaluated following the rule of eager evaluation, where subexpressions of an expression are completely evaluated, left to right, before performing any evaluation step on the outermost expression. Pattern matching definitions are tried in the order they were declared, with the first match being used.
+FreeCat expressions are evaluated following the rule of eager evaluation, where subexpressions of an expression are completely evaluated, left to right, before performing any evaluation step on the outermost expression. Pattern matching equations are tried in the order they were declared, with the first match being used.
 
 Every expression has a type, which is intrinsic to it. The type is itself an expression, whose type is Type. The type of an expression of a specific form will depend on the context in which the expression originally occurs. A symbol name, such as ``foo'' or ``Type,'' may denote different symbols in different contexts. As such, syntactically identical expressions may be semantically different expressions.
 
@@ -156,10 +156,6 @@ Type declarations assert that a given symbol has a given type. Whenever you have
 Equation declarations, also called pattern matching definitions or reduction rules, assert that during evaluation, expressions following the left hand side pattern should be replaced by the right hand side expression. As usual, the right hand expression may be dependent on variables in the left hand pattern.
 
 Patterns are like expressions, but they're restricted to consist of symbols and applications. The first symbol in the pattern is called the lead symbol. An equation declaration's left hand pattern must have a lead symbol whose type has been declared previously.
-
-\section{Syntax}
-
-TODO
 
 \section{Semantics}
 
