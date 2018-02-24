@@ -103,6 +103,13 @@ _unifyExprWithPattern (c, matches) e (SymbolExpr t _) =
                 [constantDefinition t e]
          return (Just (c', Map.insert (name t) e matches))
 _unifyExprWithPattern (c0, matches0) (AppExpr e f _) (AppExpr p q _) =
+  unifyApplication c0 matches0 e f p q
+_unifyExprWithPattern (c0, matches0) (ImplicitAppExpr e f _) (AppExpr p q _) =
+  unifyApplication c0 matches0 e f p q
+_unifyExprWithPattern (c, matches) e p = return Nothing
+
+unifyApplication :: Context -> Map String Expr -> Expr -> Expr -> Pattern -> Pattern -> FreeCat (Maybe (Context, Map String Expr))
+unifyApplication c0 matches0 e f p q =
   do unifyResult1 <- _unifyExprWithPattern (c0, matches0) e p
      case unifyResult1 of
        Nothing -> return Nothing
@@ -111,4 +118,3 @@ _unifyExprWithPattern (c0, matches0) (AppExpr e f _) (AppExpr p q _) =
            case unifyResult2 of
              Nothing -> return Nothing
              Just (c2, matches2) -> return unifyResult2
-_unifyExprWithPattern (c, matches) e p = return Nothing

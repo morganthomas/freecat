@@ -3,8 +3,8 @@ empty : {a : Type} -> List a;
 cons : {a : Type} -> a -> List a -> List a;
 
 map : {a : Type} -> {b : Type} -> (a -> b) -> List a -> List b;
-map f empty => empty;
-map f (cons x xs) => cons (f x) (map f xs);
+map a b f empty => empty;
+map a b f (cons x xs) => cons (f x) (map f xs);
 
 Foo : Type;
 foo : Foo;
