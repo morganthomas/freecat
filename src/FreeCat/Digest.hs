@@ -214,17 +214,17 @@ inferArguments appE c headSym args = do
 -- of the implicit arguments will be drawn from the context, looked up by name.
 -- They will be undefined if they don't have values defined in the context.
 createApplicationExpr :: Context -> Expr -> Expr -> [(Expr, Expr)] -> FreeCat Expr
-createApplicationExpr c headExpr (ImplicitDependencyTypeExpr s b _) explicitArgs = do
-  value <- case lookupSymbol c (name s) of
-    Nothing -> return (makeUndefined (definedType s))
-    Just (Symbol { equations = [Equation _ _ (SymbolExpr _ _) e _] }) -> return e
-  createApplicationExpr c (ImplicitAppExpr headExpr value Nothing) b explicitArgs
 createApplicationExpr c headExpr (FunctionTypeExpr a b _) ((arg, argType):args) = do
   assertTypesMatch c arg argType c arg a
   createApplicationExpr c (AppExpr headExpr arg Nothing) b args
 createApplicationExpr c headExpr (DependentFunctionTypeExpr s@(Symbol { definedType = a }) b _) ((arg, argType):args) = do
   assertTypesMatch c arg argType c arg a
   createApplicationExpr c (AppExpr headExpr arg Nothing) b args
+createApplicationExpr c headExpr (ImplicitDependencyTypeExpr s b _) explicitArgs = do
+  value <- case lookupSymbol c (name s) of
+    Nothing -> return (makeUndefined (definedType s))
+    Just (Symbol { equations = [Equation _ _ (SymbolExpr _ _) e _] }) -> return e
+  createApplicationExpr c (ImplicitAppExpr headExpr value Nothing) b explicitArgs
 createApplicationExpr c headExpr _ [] = return headExpr
 
 -- Takes a context, a function type, and a list of explicit arguments paired with their types.
