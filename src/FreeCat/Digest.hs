@@ -69,17 +69,21 @@ digestPattern c0 e@(RawAppExpr pos e0 e1) = do
      (e0d, e0dType, c1) <- digestPattern c0 e0
      e1_expectedType <- domainType (ErrRawAppHeadIsNotFunctionTyped 1 e) e0dType
      (e1d, e1dType, c2) <- digestPattern' c1 e1 e1_expectedType
-     appType <- case e0dType of
-       FunctionTypeExpr a b pos ->
-         do assertTypesMatch c2 e1d e1dType c2 e1d a
-            return b
-       DependentFunctionTypeExpr s b pos ->
-         do assertTypesMatch c2 e1d e1dType c2 (SymbolExpr s pos) (definedType s)
-            c3 <- augmentContext c2 (name s) Nothing (definedType s) Nothing
-                    [constantDefinition s e1d]
-            bEv <- evaluate c3 b
-            return bEv
-       _ -> barf (ErrAppHeadIsNotFunctionTyped 3 (AppExpr e0d e1d (Just pos)) e0dType)
+     appType <-
+       let dependentTypeCase s b pos = (do {
+               assertTypesMatch c2 e1d e1dType c2 (SymbolExpr s pos) (definedType s);
+               c3 <- augmentContext c2 (name s) Nothing (definedType s) Nothing
+                          [constantDefinition s e1d];
+               bEv <- evaluate c3 b;
+               return bEv
+            } )
+         in case e0dType of
+           FunctionTypeExpr a b pos ->
+             do assertTypesMatch c2 e1d e1dType c2 e1d a
+                return b
+           DependentFunctionTypeExpr s b pos -> dependentTypeCase s b pos
+           ImplicitDependencyTypeExpr s b pos -> dependentTypeCase s b pos
+           _ -> barf (ErrAppHeadIsNotFunctionTyped 3 (AppExpr e0d e1d (Just pos)) e0dType)
      return ((AppExpr e0d e1d (Just pos)), appType, c2)
 
 -- Also expects to receive an expected type (et) for this pattern. It can handle
