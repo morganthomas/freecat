@@ -46,6 +46,8 @@ instance Show Error where
     "Failed to match types: "
     ++ "\n  " ++ show e0 ++ " : " ++ show t0
     ++ "\n  " ++ show e1 ++ " : " ++ show t1
+    ++ "\n\nContext of " ++ show e0 ++ " : " ++ show t0 ++ ":\n" ++ show c0
+    ++ "\n\n------------\n\nContext of " ++ show e1 ++ " : " ++ show t1 ++ ":\n" ++ show c1
   show ErrIThoughtThisWasImpossible = "Something impossible has occurred. There is a bug in FreeCat.Core."
   show ErrExtraTypeDeclaration = "Illegal: declared a type for a symbol twice in one context."
   show ErrEquationWithoutMatchingTypeDeclaration = "Illegal: declared a pattern matching equation without declaring the lead symbol's type first."
