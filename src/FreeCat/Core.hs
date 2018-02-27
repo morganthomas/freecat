@@ -89,13 +89,13 @@ showJustRawExpr (RawFunctionTypeExpr pos a b) = "(" ++ showJustRawExpr a ++ " ->
 showJustRawExpr (RawDependentFunctionTypeExpr pos s a b) = "((" ++ s ++ " : " ++ showJustRawExpr a ++ ") -> " ++ showJustRawExpr b ++ ")"
 showJustRawExpr (RawImplicitDependencyTypeExpr pos s a b) = "({" ++ s ++ " : " ++ showJustRawExpr a ++ "} -> " ++ showJustRawExpr b ++ ")"
 
-rawApplicationHead :: RawExpr -> FreeCat RawExpr
-rawApplicationHead e@(RawSymbolExpr _ _) = return e
-rawApplicationHead e@(RawLambdaExpr _ _ _ _) = return e
-rawApplicationHead (RawAppExpr pos e0 e1) = rawApplicationHead e0
-rawApplicationHead (RawFunctionTypeExpr _ _ _) = barf ErrAppHeadIsNotFunctionTyped
-rawApplicationHead (RawDependentFunctionTypeExpr _ _ _ _) = barf ErrAppHeadIsNotFunctionTyped
-rawApplicationHead (RawImplicitDependencyTypeExpr _ _ _ _) = barf ErrAppHeadIsNotFunctionTyped
+rawApplicationHead :: RawExpr -> Error -> FreeCat RawExpr
+rawApplicationHead e@(RawSymbolExpr _ _) err = return e
+rawApplicationHead e@(RawLambdaExpr _ _ _ _) err = return e
+rawApplicationHead (RawAppExpr pos e0 e1) err = rawApplicationHead e0
+rawApplicationHead (RawFunctionTypeExpr _ _ _) err = barf err
+rawApplicationHead (RawDependentFunctionTypeExpr _ _ _ _) = barf err
+rawApplicationHead (RawImplicitDependencyTypeExpr _ _ _ _) = barf err
 
 rawApplicationArguments :: RawExpr -> [RawExpr]
 rawApplicationArguments (RawAppExpr pos e0 e1) = rawApplicationArguments e0 ++ [e1] -- TODO: less consing

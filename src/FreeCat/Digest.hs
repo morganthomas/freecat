@@ -157,7 +157,7 @@ digestExpr c (RawSymbolExpr pos s) =
     Just sym -> return (SymbolExpr sym (Just pos), definedType sym)
     Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
 digestExpr c e@(RawAppExpr pos e0 e1) = do
-  appHead <- rawApplicationHead e
+  appHead <- rawApplicationHead e ErrAppHeadIsNotFunctionTyped
   case appHead of
     RawSymbolExpr _ s -> do
       sym <- certainly $ lookupSymbol c s
