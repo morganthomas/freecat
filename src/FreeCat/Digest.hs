@@ -65,9 +65,9 @@ digestPattern c (RawSymbolExpr pos s) =
   case lookupSymbol c s of
     Just sym -> return (SymbolExpr sym (Just pos), definedType sym, c)
     Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
-digestPattern c0 (RawAppExpr pos e0 e1) = do
+digestPattern c0 e@(RawAppExpr pos e0 e1) = do
      (e0d, e0dType, c1) <- digestPattern c0 e0
-     e1_expectedType <- domainType ErrAppHeadIsNotFunctionTyped e0dType
+     e1_expectedType <- domainType (ErrRawAppHeadIsNotFunctionTyped 1 e) e0dType
      (e1d, e1dType, c2) <- digestPattern' c1 e1 e1_expectedType
      appType <- case e0dType of
        FunctionTypeExpr a b pos ->
@@ -79,7 +79,7 @@ digestPattern c0 (RawAppExpr pos e0 e1) = do
                     [constantDefinition s e1d]
             bEv <- evaluate c3 b
             return bEv
-       _ -> barf ErrAppHeadIsNotFunctionTyped
+       _ -> barf (ErrAppHeadIsNotFunctionTyped 3 (AppExpr e0d e1d (Just pos)) e0dType)
      return ((AppExpr e0d e1d (Just pos)), appType, c2)
 
 -- Also expects to receive an expected type (et) for this pattern. It can handle
@@ -93,9 +93,9 @@ digestPattern' c (RawSymbolExpr pos s) et =
       c' <- augmentContext c s Nothing et Nothing []
       sym <- certainly (lookupSymbol c' s)
       return (SymbolExpr sym (Just pos), et, c')
-digestPattern' c0 (RawAppExpr pos e0 e1) et =
+digestPattern' c0 e@(RawAppExpr pos e0 e1) et =
    do (e0d, e0dType, c1) <- digestPattern c0 e0
-      e1_expectedType <- domainType ErrAppHeadIsNotFunctionTyped e0dType
+      e1_expectedType <- domainType (ErrRawAppHeadIsNotFunctionTyped 3 e) e0dType
       (e1d, e1dType, c2) <- digestPattern' c1 e1 e1_expectedType
       appType <- inferAppType c2 e0d e0dType e1d e1dType
       return ((AppExpr e0d e1d (Just pos)), appType, c2)
@@ -103,7 +103,7 @@ digestPattern' c0 (RawAppExpr pos e0 e1) et =
 -- Infers the type of the given expr based on the context.
 inferType :: Context -> Expr -> FreeCat Expr
 inferType c (SymbolExpr (Symbol { definedType = t }) _) = return t
-inferType c (AppExpr f x _) = do
+inferType c e@(AppExpr f x _) = do
   ft <- inferType c f
   xt <- inferType c x
   case ft of
@@ -115,7 +115,7 @@ inferType c (AppExpr f x _) = do
       c' <- augmentContext c (name s) (Just $ nativeContext s) a Nothing [constantDefinition s x]
       evaluate c' b
     ImplicitDependencyTypeExpr s b _ -> barf ErrNotAllowed
-    _ -> barf ErrAppHeadIsNotFunctionTyped
+    _ -> barf (ErrAppHeadIsNotFunctionTyped 1 e ft)
 inferType c (ImplicitAppExpr f x _) = do
   ft <- inferType c f
   xt <- inferType c x
@@ -147,7 +147,7 @@ inferAppType c e0 e0Type e1 e1Type =
         bEv <- evaluate c' b
         return bEv
    ImplicitDependencyTypeExpr s b pos -> barf ErrCannotInferImplicitArgumentValue
-   _ -> barf ErrAppHeadIsNotFunctionTyped
+   _ -> barf (ErrAppHeadIsNotFunctionTyped 2 (AppExpr e0 e1 (sourcePos e0)) e0Type)
 
 -- Assumes all symbols used in RawExpr are defined in Context.
 -- Returns a pair of the digested expr and its inferred type.
@@ -157,7 +157,7 @@ digestExpr c (RawSymbolExpr pos s) =
     Just sym -> return (SymbolExpr sym (Just pos), definedType sym)
     Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
 digestExpr c e@(RawAppExpr pos e0 e1) = do
-  appHead <- rawApplicationHead e ErrAppHeadIsNotFunctionTyped
+  appHead <- rawApplicationHead e (ErrRawAppHeadIsNotFunctionTyped 0 e)
   case appHead of
     RawSymbolExpr _ s -> do
       sym <- certainly $ lookupSymbol c s

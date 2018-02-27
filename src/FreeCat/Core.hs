@@ -20,7 +20,8 @@ data Error =
  | ErrExpectedLeadSymbolFoundLambda
  | ErrExpectedLeadSymbolFoundFunctionType
  | ErrSymbolNotDefined Context (Maybe SourcePos) String
- | ErrAppHeadIsNotFunctionTyped
+ | ErrAppHeadIsNotFunctionTyped Int Expr Expr
+ | ErrRawAppHeadIsNotFunctionTyped Int RawExpr
  | ErrCannotInferImplicitArgumentValue
  | ErrTypeMismatch Context Expr Expr Context Expr Expr
  | ErrIThoughtThisWasImpossible
@@ -37,7 +38,10 @@ instance Show Error where
   show (ErrSymbolNotDefined c pos s) = "Symbol not defined: " ++ s
     ++ "\nSource pos: " ++ show pos
     ++ "\nContext:\n" ++ show c
-  show ErrAppHeadIsNotFunctionTyped = "Type error: head of function application doesn't have a function type."
+  show (ErrAppHeadIsNotFunctionTyped n e t) = "Type error (" ++ show n
+    ++ "): head of function application doesn't have a function type in expression or pattern: " ++ show e
+    ++ " and instead its head has type " ++ show t
+  show (ErrRawAppHeadIsNotFunctionTyped n e) = "Type error (" ++ show n ++ "): raw head of function application doesn't have a function type in expression or pattern: " ++ show e
   show (ErrTypeMismatch c0 e0 t0 c1 e1 t1) =
     "Failed to match types: "
     ++ "\n  " ++ show e0 ++ " : " ++ show t0
@@ -92,10 +96,10 @@ showJustRawExpr (RawImplicitDependencyTypeExpr pos s a b) = "({" ++ s ++ " : " +
 rawApplicationHead :: RawExpr -> Error -> FreeCat RawExpr
 rawApplicationHead e@(RawSymbolExpr _ _) err = return e
 rawApplicationHead e@(RawLambdaExpr _ _ _ _) err = return e
-rawApplicationHead (RawAppExpr pos e0 e1) err = rawApplicationHead e0
+rawApplicationHead (RawAppExpr pos e0 e1) err = rawApplicationHead e0 err
 rawApplicationHead (RawFunctionTypeExpr _ _ _) err = barf err
-rawApplicationHead (RawDependentFunctionTypeExpr _ _ _ _) = barf err
-rawApplicationHead (RawImplicitDependencyTypeExpr _ _ _ _) = barf err
+rawApplicationHead (RawDependentFunctionTypeExpr _ _ _ _) err = barf err
+rawApplicationHead (RawImplicitDependencyTypeExpr _ _ _ _) err = barf err
 
 rawApplicationArguments :: RawExpr -> [RawExpr]
 rawApplicationArguments (RawAppExpr pos e0 e1) = rawApplicationArguments e0 ++ [e1] -- TODO: less consing
@@ -409,14 +413,25 @@ s `occursFreeIn` (DependentFunctionTypeExpr s' b _) =
 -- Dealing with expressions
 --
 
+sourcePos :: Expr -> Maybe SourcePos
+sourcePos (SymbolExpr _ pos) = pos
+sourcePos (AppExpr _ _ pos) = pos
+sourcePos (LambdaExpr _ _ _ pos) = pos
+sourcePos (FunctionTypeExpr _ _ pos) = pos
+sourcePos (DependentFunctionTypeExpr _ _ pos) = pos
+sourcePos (ImplicitDependencyTypeExpr _ _ pos) = pos
+
 -- Gathers the head of a function application expression.
 applicationHead :: Expr -> FreeCat Expr
-applicationHead e@(SymbolExpr _ _) = return e
-applicationHead e@(LambdaExpr _ _ _ _) = return e
-applicationHead (AppExpr e0 e1 pos) = applicationHead e0
-applicationHead (FunctionTypeExpr _ _ _) = barf ErrAppHeadIsNotFunctionTyped
-applicationHead (DependentFunctionTypeExpr _ _ _) = barf ErrAppHeadIsNotFunctionTyped
-applicationHead (ImplicitDependencyTypeExpr _ _ _) = barf ErrAppHeadIsNotFunctionTyped
+applicationHead e = applicationHead' e (ErrAppHeadIsNotFunctionTyped 0 e (makeUndefined typeOfTypes))
+
+applicationHead' :: Expr -> Error -> FreeCat Expr
+applicationHead' e@(SymbolExpr _ _) err = return e
+applicationHead' e@(LambdaExpr _ _ _ _) err = return e
+applicationHead' (AppExpr e0 e1 pos) err = applicationHead' e0 err
+applicationHead' (FunctionTypeExpr _ _ _) err = barf err
+applicationHead' (DependentFunctionTypeExpr _ _ _) err = barf err
+applicationHead' (ImplicitDependencyTypeExpr _ _ _) err = barf err
 
 -- Gathers the lead symbol in a normalized application expression.
 leadSymbol :: Expr -> FreeCat Symbol
