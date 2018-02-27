@@ -23,7 +23,7 @@ data Error =
  | ErrAppHeadIsNotFunctionTyped Int Expr Expr
  | ErrRawAppHeadIsNotFunctionTyped Int RawExpr
  | ErrCannotInferImplicitArgumentValue
- | ErrTypeMismatch Context Expr Expr Context Expr Expr
+ | ErrTypeMismatch Int Context Expr Expr Context Expr Expr
  | ErrIThoughtThisWasImpossible
  | ErrExtraTypeDeclaration
  | ErrEquationWithoutMatchingTypeDeclaration
@@ -42,8 +42,8 @@ instance Show Error where
     ++ "): head of function application doesn't have a function type in expression or pattern: " ++ show e
     ++ " and instead its head has type " ++ show t
   show (ErrRawAppHeadIsNotFunctionTyped n e) = "Type error (" ++ show n ++ "): raw head of function application doesn't have a function type in expression or pattern: " ++ show e
-  show (ErrTypeMismatch c0 e0 t0 c1 e1 t1) =
-    "Failed to match types: "
+  show (ErrTypeMismatch n c0 e0 t0 c1 e1 t1) =
+    "Failed to match types (" ++ show n ++ "): "
     ++ "\n  " ++ show e0 ++ " : " ++ show t0
     ++ "\n  " ++ show e1 ++ " : " ++ show t1
     ++ "\n\nContext of " ++ show e0 ++ " : " ++ show t0 ++ ":\n" ++ show c0

@@ -27,7 +27,7 @@ addToContext c (RawEquationDeclaration pos (RawEquation rawdecls rawpat rawdef))
    Just sym ->
      do (pat, patType, cPat) <- digestPattern c rawpat
         (def, defType) <- digestExpr cPat rawdef
-        assertTypesMatch cPat def defType cPat pat patType
+        assertTypesMatch 1 cPat def defType cPat pat patType
         decls <- mapM (digestVarDecl pos cPat) rawdecls
         augmentContext c (name sym) (Just $ nativeContext sym) (definedType sym) (declarationSourcePos sym)
           (equations sym ++ [ (Equation cPat decls pat def (Just pos)) ]) -- TODO: less consing
@@ -44,7 +44,7 @@ digestTypeAssertion allowDuplicates c ass@(RawTypeAssertion s rawt, pos) =
 digestTypeAssertion' :: Context -> (RawTypeAssertion, SourcePos) -> FreeCat Context
 digestTypeAssertion' c (RawTypeAssertion s rawt, pos) =
   do (t, tt) <- digestExpr c rawt
-     assertTypesMatch c t tt rootContext t typeOfTypes
+     assertTypesMatch 2 c t tt rootContext t typeOfTypes
      c' <- augmentContext c s Nothing t (Just pos) []
      return c'
 
@@ -55,7 +55,7 @@ digestVarDecl pos cPat assertion@(RawTypeAssertion s rawt) = do
   sym <- certainly (lookupSymbol cPat s)
   c' <- digestTypeAssertion True cPat (assertion, pos)
   sym' <- certainly (lookupSymbol c' s)
-  assertTypesMatch cPat (SymbolExpr sym (Just pos)) (definedType sym) c' (SymbolExpr sym' (Just pos)) (definedType sym')
+  assertTypesMatch 3 cPat (SymbolExpr sym (Just pos)) (definedType sym) c' (SymbolExpr sym' (Just pos)) (definedType sym')
   return sym
 
 -- Returns a triple of the digested pattern, its inferred type, and the Context
@@ -71,7 +71,7 @@ digestPattern c0 e@(RawAppExpr pos e0 e1) = do
      (e1d, e1dType, c2) <- digestPattern' c1 e1 e1_expectedType
      appType <-
        let dependentTypeCase s b pos = (do {
-               assertTypesMatch c2 e1d e1dType c2 (SymbolExpr s pos) (definedType s);
+               assertTypesMatch 4 c2 e1d e1dType c2 (SymbolExpr s pos) (definedType s);
                c3 <- augmentContext c2 (name s) Nothing (definedType s) Nothing
                           [constantDefinition s e1d];
                bEv <- evaluate c3 b;
@@ -79,7 +79,7 @@ digestPattern c0 e@(RawAppExpr pos e0 e1) = do
             } )
          in case e0dType of
            FunctionTypeExpr a b pos ->
-             do assertTypesMatch c2 e1d e1dType c2 e1d a
+             do assertTypesMatch 5 c2 e1d e1dType c2 e1d a
                 return b
            DependentFunctionTypeExpr s b pos -> dependentTypeCase s b pos
            ImplicitDependencyTypeExpr s b pos -> dependentTypeCase s b pos
@@ -112,10 +112,10 @@ inferType c e@(AppExpr f x _) = do
   xt <- inferType c x
   case ft of
     FunctionTypeExpr a b _ -> do
-      assertTypesMatch c x xt c x a
+      assertTypesMatch 6 c x xt c x a
       return b
     DependentFunctionTypeExpr s@(Symbol { definedType = a }) b _ -> do
-      assertTypesMatch c x xt c x a
+      assertTypesMatch 7 c x xt c x a
       c' <- augmentContext c (name s) (Just $ nativeContext s) a Nothing [constantDefinition s x]
       evaluate c' b
     ImplicitDependencyTypeExpr s b _ -> barf ErrNotAllowed
@@ -125,7 +125,7 @@ inferType c (ImplicitAppExpr f x _) = do
   xt <- inferType c x
   case ft of
     ImplicitDependencyTypeExpr s@(Symbol { definedType = a }) b _ -> do
-      assertTypesMatch c x xt c x a
+      assertTypesMatch 8 c x xt c x a
       c' <- augmentContext c (name s) (Just $ nativeContext s) a Nothing [constantDefinition s x]
       evaluate c' b
     _ -> barf ErrNotAllowed
@@ -142,10 +142,10 @@ inferAppType :: Context -> Expr -> Expr -> Expr -> Expr -> FreeCat Expr
 inferAppType c e0 e0Type e1 e1Type =
  case e0Type of
    FunctionTypeExpr a b pos ->
-     do assertTypesMatch c e1 e1Type c e1 a
+     do assertTypesMatch 9 c e1 e1Type c e1 a
         return b
    DependentFunctionTypeExpr s b pos ->
-     do assertTypesMatch c e1 e1Type c (SymbolExpr s pos) (definedType s)
+     do assertTypesMatch 10 c e1 e1Type c (SymbolExpr s pos) (definedType s)
         c' <- augmentContext c (name s) Nothing (definedType s) Nothing
                 [constantDefinition s e1]
         bEv <- evaluate c' b
@@ -170,7 +170,7 @@ digestExpr c e@(RawAppExpr pos e0 e1) = do
     RawLambdaExpr _ _ _ _ -> error "case not implemented yet"
 digestExpr c (RawLambdaExpr pos s t d) =
   do (td, tdType) <- digestExpr c t
-     assertTypesMatch c td tdType rootContext td typeOfTypes
+     assertTypesMatch 11 c td tdType rootContext td typeOfTypes
      c' <- augmentContext c s Nothing td Nothing []
      (dd, ddType) <- digestExpr c' d
      sym <- certainly (lookupSymbol c' s)
@@ -178,25 +178,25 @@ digestExpr c (RawLambdaExpr pos s t d) =
        return (LambdaExpr c' sym dd (Just pos), lt)
 digestExpr c (RawFunctionTypeExpr pos a b) =
   do (ad, adType) <- digestExpr c a
-     assertTypesMatch c ad adType rootContext ad typeOfTypes
+     assertTypesMatch 12 c ad adType rootContext ad typeOfTypes
      (bd, bdType) <- digestExpr c b
-     assertTypesMatch c bd bdType rootContext bd typeOfTypes
+     assertTypesMatch 13 c bd bdType rootContext bd typeOfTypes
      return (FunctionTypeExpr ad bd (Just pos), typeOfTypes)
 digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
   do (ad, adType) <- digestExpr c a
-     assertTypesMatch c ad adType rootContext ad typeOfTypes
+     assertTypesMatch 14 c ad adType rootContext ad typeOfTypes
      c' <- augmentContext c s Nothing ad (Just pos) []
      sym <- certainly (lookupSymbol c' s)
      (bd, bdType) <- digestExpr c' b
-     assertTypesMatch c' bd bdType rootContext bd typeOfTypes
+     assertTypesMatch 15 c' bd bdType rootContext bd typeOfTypes
      return (DependentFunctionTypeExpr sym bd (Just pos), typeOfTypes)
 digestExpr c (RawImplicitDependencyTypeExpr pos s a b) =
   do (ad, adType) <- digestExpr c a
-     assertTypesMatch c ad adType rootContext ad typeOfTypes
+     assertTypesMatch 16 c ad adType rootContext ad typeOfTypes
      c' <- augmentContext c s Nothing ad (Just pos) []
      sym <- certainly (lookupSymbol c' s)
      (bd, bdType) <- digestExpr c' b
-     assertTypesMatch c' bd bdType rootContext bd typeOfTypes
+     assertTypesMatch 17 c' bd bdType rootContext bd typeOfTypes
      return (ImplicitDependencyTypeExpr sym bd (Just pos), typeOfTypes)
 
 -- The core digestion algorithm for function application expressions whose
@@ -219,10 +219,10 @@ inferArguments appE c headSym args = do
 -- They will be undefined if they don't have values defined in the context.
 createApplicationExpr :: Context -> Expr -> Expr -> [(Expr, Expr)] -> FreeCat Expr
 createApplicationExpr c headExpr (FunctionTypeExpr a b _) ((arg, argType):args) = do
-  assertTypesMatch c arg argType c arg a
+  assertTypesMatch 18 c arg argType c arg a
   createApplicationExpr c (AppExpr headExpr arg Nothing) b args
 createApplicationExpr c headExpr (DependentFunctionTypeExpr s@(Symbol { definedType = a }) b _) ((arg, argType):args) = do
-  assertTypesMatch c arg argType c arg a
+  assertTypesMatch 19 c arg argType c arg a
   createApplicationExpr c (AppExpr headExpr arg Nothing) b args
 createApplicationExpr c headExpr (ImplicitDependencyTypeExpr s b _) explicitArgs = do
   value <- case lookupSymbol c (name s) of
@@ -303,18 +303,18 @@ unifyExprWithExpr' appE c (ImplicitDependencyTypeExpr s@(Symbol { definedType = 
 unifyExprWithExpr' appE c es esOrig = barf (ErrCannotUnify es esOrig appE)
 
 -- Throws an error unless the two exprs match as types.
-assertTypesMatch :: Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
-assertTypesMatch c0 e0 t0 c1 e1 t1 =
+assertTypesMatch :: Int -> Context -> Expr -> Expr -> Context -> Expr -> Expr -> FreeCat ()
+assertTypesMatch n c0 e0 t0 c1 e1 t1 =
   do t0ev <- evaluate c0 t0
      t1ev <- evaluate c1 t1
      if t0ev == t1ev
        then return ()
-       else barf (ErrTypeMismatch c0 e0 t0ev c1 e1 t1ev)
+       else barf (ErrTypeMismatch n c0 e0 t0ev c1 e1 t1ev)
 
 assertIsTypeOfTypes :: Expr -> FreeCat ()
 assertIsTypeOfTypes e =
-  assertTypesMatch rootContext (makeUndefined e) e
-                   rootContext (makeUndefined typeOfTypes) typeOfTypes
+  assertTypesMatch 0 rootContext (makeUndefined e) e
+                     rootContext (makeUndefined typeOfTypes) typeOfTypes
 
 completeContext :: Context -> FreeCat Context
 completeContext c =
