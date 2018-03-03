@@ -26,8 +26,7 @@ addToContext c (RawEquationDeclaration pos (RawEquation rawdecls rawpat rawdef))
    Nothing -> barf ErrEquationWithoutMatchingTypeDeclaration
    Just sym ->
      do (pat, patType, cPat) <- digestPattern c rawpat
-        (def, defType) <- digestExpr cPat rawdef
-        assertTypesMatch 1 cPat def defType cPat pat patType
+        def <- digestExpr' cPat rawdef patType
         decls <- mapM (digestVarDecl pos cPat) rawdecls
         augmentContext c (name sym) (Just $ nativeContext sym) (definedType sym) (declarationSourcePos sym)
           (equations sym ++ [ (Equation cPat decls pat def (Just pos)) ]) -- TODO: less consing
@@ -43,8 +42,7 @@ digestTypeAssertion allowDuplicates c ass@(RawTypeAssertion s rawt, pos) =
 
 digestTypeAssertion' :: Context -> (RawTypeAssertion, SourcePos) -> FreeCat Context
 digestTypeAssertion' c (RawTypeAssertion s rawt, pos) =
-  do (t, tt) <- digestExpr c rawt
-     assertTypesMatch 2 c t tt rootContext t typeOfTypes
+  do t <- digestExpr' c rawt typeOfTypes
      c' <- augmentContext c s Nothing t (Just pos) []
      return c'
 
@@ -169,35 +167,77 @@ digestExpr c e@(RawAppExpr pos e0 e1) = do
       inferArguments e c sym explicitArguments
     RawLambdaExpr _ _ _ _ -> error "case not implemented yet"
 digestExpr c (RawLambdaExpr pos s t d) =
-  do (td, tdType) <- digestExpr c t
-     assertTypesMatch 11 c td tdType rootContext td typeOfTypes
+  do td <- digestExpr' c t typeOfTypes
      c' <- augmentContext c s Nothing td Nothing []
      (dd, ddType) <- digestExpr c' d
      sym <- certainly (lookupSymbol c' s)
      let lt = (DependentFunctionTypeExpr sym ddType (Just pos)) in
        return (LambdaExpr c' sym dd (Just pos), lt)
 digestExpr c (RawFunctionTypeExpr pos a b) =
-  do (ad, adType) <- digestExpr c a
-     assertTypesMatch 12 c ad adType rootContext ad typeOfTypes
-     (bd, bdType) <- digestExpr c b
-     assertTypesMatch 13 c bd bdType rootContext bd typeOfTypes
+  do ad <- digestExpr' c a typeOfTypes
+     bd <- digestExpr' c b typeOfTypes
      return (FunctionTypeExpr ad bd (Just pos), typeOfTypes)
 digestExpr c (RawDependentFunctionTypeExpr pos s a b) =
-  do (ad, adType) <- digestExpr c a
-     assertTypesMatch 14 c ad adType rootContext ad typeOfTypes
+  do ad <- digestExpr' c a typeOfTypes
      c' <- augmentContext c s Nothing ad (Just pos) []
      sym <- certainly (lookupSymbol c' s)
-     (bd, bdType) <- digestExpr c' b
-     assertTypesMatch 15 c' bd bdType rootContext bd typeOfTypes
+     bd <- digestExpr' c' b typeOfTypes
      return (DependentFunctionTypeExpr sym bd (Just pos), typeOfTypes)
 digestExpr c (RawImplicitDependencyTypeExpr pos s a b) =
-  do (ad, adType) <- digestExpr c a
-     assertTypesMatch 16 c ad adType rootContext ad typeOfTypes
+  do ad <- digestExpr' c a typeOfTypes
      c' <- augmentContext c s Nothing ad (Just pos) []
      sym <- certainly (lookupSymbol c' s)
-     (bd, bdType) <- digestExpr c' b
-     assertTypesMatch 17 c' bd bdType rootContext bd typeOfTypes
+     bd <- digestExpr' c' b typeOfTypes
      return (ImplicitDependencyTypeExpr sym bd (Just pos), typeOfTypes)
+
+-- Like digestExpr, but instead of returning an inferred type, it takes
+-- an expected type et.
+digestExpr' :: Context -> RawExpr -> Expr -> FreeCat Expr
+digestExpr' c (RawSymbolExpr pos s) et =
+  case lookupSymbol c s of
+    Just sym ->
+      let e = SymbolExpr sym (Just pos) in
+        do assertTypesMatch 12 c e et c e (definedType sym)
+           return e
+    Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
+digestExpr' c e@(RawAppExpr pos e0 e1) et = do
+  appHead <- rawApplicationHead e (ErrRawAppHeadIsNotFunctionTyped 0 e)
+  case appHead of
+    RawSymbolExpr _ s -> do
+      sym <- certainly $ lookupSymbol c s
+      explicitArguments <- mapM (digestExpr c) (rawApplicationArguments e)
+      (e, t) <- inferArguments e c sym explicitArguments
+      assertTypesMatch 13 c e et c e t
+      return e
+    RawLambdaExpr _ _ _ _ -> error "case not implemented yet"
+digestExpr' c (RawLambdaExpr pos s t d) et =
+  do td <- digestExpr' c t typeOfTypes
+     c' <- augmentContext c s Nothing td Nothing []
+     (dd, ddType) <- digestExpr c' d
+     sym <- certainly (lookupSymbol c' s)
+     let l = LambdaExpr c' sym dd (Just pos)
+         lt = (DependentFunctionTypeExpr sym ddType (Just pos)) in
+       do assertTypesMatch 14 c l et c l lt
+          return l
+digestExpr' c (RawFunctionTypeExpr pos a b) et =
+  do assertIsTypeOfTypes et
+     ad <- digestExpr' c a typeOfTypes
+     bd <- digestExpr' c b typeOfTypes
+     return (FunctionTypeExpr ad bd (Just pos))
+digestExpr' c (RawDependentFunctionTypeExpr pos s a b) et =
+  do assertIsTypeOfTypes et
+     ad <- digestExpr' c a typeOfTypes
+     c' <- augmentContext c s Nothing ad (Just pos) []
+     sym <- certainly (lookupSymbol c' s)
+     bd <- digestExpr' c' b typeOfTypes
+     return (DependentFunctionTypeExpr sym bd (Just pos))
+digestExpr' c (RawImplicitDependencyTypeExpr pos s a b) et =
+  do assertIsTypeOfTypes et
+     ad <- digestExpr' c a typeOfTypes
+     c' <- augmentContext c s Nothing ad (Just pos) []
+     sym <- certainly (lookupSymbol c' s)
+     bd <- digestExpr' c' b typeOfTypes
+     return (ImplicitDependencyTypeExpr sym bd (Just pos))
 
 -- The core digestion algorithm for function application expressions whose
 -- application heads are symbols. Works on the already-defined head symbol
