@@ -262,8 +262,17 @@ inferArguments' appE c headSym args et = do
   (e, t) <- inferArguments appE c headSym args
   inferOuterImplicitArguments c e t et
 
+-- makes t match et if this can be done by inferring implicit arguments e
+-- should take according to unification of et with the outmost matching codomain of t
 inferOuterImplicitArguments :: Context -> Expr -> Expr -> Expr -> FreeCat Expr
-inferOuterImplicitArguments c e t et = undefined
+inferOuterImplicitArguments c e t et =
+  if t == et
+   then return e
+   else case et of
+     ImplicitDependencyTypeExpr s b pos ->
+       undefined
+     _ ->
+       barf (ErrTypeMismatch 420 c e t c e et)
 
 -- Infers an application expr from an application head expr, the type directing the
 -- argument inference, and a list of explicit arguments and their types. The values
