@@ -90,7 +90,10 @@ digestPattern c0 e@(RawAppExpr pos e0 e1) = do
 digestPattern' :: Context -> RawExpr -> Expr -> FreeCat (Expr, Expr, Context)
 digestPattern' c (RawSymbolExpr pos s) et =
    case lookupSymbol c s of
-     Just sym -> return (SymbolExpr sym (Just pos), definedType sym, c)
+     Just sym ->
+       let e = SymbolExpr sym (Just pos) in
+         do e' <- inferOuterImplicitArguments c e (definedType sym) et
+            return (e', et, c)
      Nothing -> do
       c' <- augmentContext c s Nothing et Nothing []
       sym <- certainly (lookupSymbol c' s)
@@ -196,9 +199,7 @@ digestExpr' :: Context -> RawExpr -> Expr -> FreeCat Expr
 digestExpr' c (RawSymbolExpr pos s) et =
   case lookupSymbol c s of
     Just sym ->
-      let e = SymbolExpr sym (Just pos) in
-        do assertTypesMatch 12 c e et c e (definedType sym)
-           return e
+      inferOuterImplicitArguments c (SymbolExpr sym (Just pos)) (definedType sym) et
     Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
 digestExpr' c e@(RawAppExpr pos e0 e1) et = do
   appHead <- rawApplicationHead e (ErrRawAppHeadIsNotFunctionTyped 0 e)
@@ -206,9 +207,7 @@ digestExpr' c e@(RawAppExpr pos e0 e1) et = do
     RawSymbolExpr _ s -> do
       sym <- certainly $ lookupSymbol c s
       explicitArguments <- mapM (digestExpr c) (rawApplicationArguments e)
-      (e, t) <- inferArguments e c sym explicitArguments
-      assertTypesMatch 13 c e et c e t
-      return e
+      inferArguments' e c sym explicitArguments et
     RawLambdaExpr _ _ _ _ -> error "case not implemented yet"
 digestExpr' c (RawLambdaExpr pos s t d) et =
   do td <- digestExpr' c t typeOfTypes
@@ -245,13 +244,26 @@ digestExpr' c (RawImplicitDependencyTypeExpr pos s a b) et =
 -- Returns a digested application expression with values inferred for
 -- the implicit arguments. The implicit argument inference is directed by
 -- the type of the head symbol and the values and types of the explicit arguments.
--- appE is passed for error reporting only.
+--
+-- appE - the source expression we're inferring from. passed for error reporting only.
+-- c - the context
+-- headSym - the head symbol of the application expression
+-- args - the explicit arguments of the application expression, and their types
 inferArguments :: RawExpr -> Context -> Symbol -> [(Expr, Expr)] -> FreeCat (Expr, Expr)
 inferArguments appE c headSym args = do
   c' <- unifyArgumentTypesWithFunctionType appE c (definedType headSym) args
   e <- createApplicationExpr c' (SymbolExpr headSym Nothing) (definedType headSym) args
   t <- inferType c e
   return (e, t)
+
+-- like inferArguments, but also takes an expected type et
+inferArguments' :: RawExpr -> Context -> Symbol -> [(Expr, Expr)] -> Expr -> FreeCat Expr
+inferArguments' appE c headSym args et = do
+  (e, t) <- inferArguments appE c headSym args
+  inferOuterImplicitArguments c e t et
+
+inferOuterImplicitArguments :: Context -> Expr -> Expr -> Expr -> FreeCat Expr
+inferOuterImplicitArguments c e t et = undefined
 
 -- Infers an application expr from an application head expr, the type directing the
 -- argument inference, and a list of explicit arguments and their types. The values
