@@ -269,10 +269,21 @@ inferOuterImplicitArguments c e t et =
   if t == et
    then return e
    else case et of
-     ImplicitDependencyTypeExpr s b pos ->
-       undefined
+     ImplicitDependencyTypeExpr s b pos -> do
+       (argsToInfer, codomain) <- findMatchingImplicitCodomain t et
+       return undefined
      _ ->
        barf (ErrTypeMismatch 420 c e t c e et)
+
+findMatchingImplicitCodomain :: Expr -> Expr -> FreeCat ([Symbol], Expr)
+findMatchingImplicitCodomain e matches =
+  if e == matches
+   then return ([], e)
+   else case e of
+     ImplicitDependencyTypeExpr s b pos -> do
+       (args, cod) <- findMatchingImplicitCodomain b matches
+       return (s:args, cod)
+     _ -> barf ErrNotAllowed
 
 -- Infers an application expr from an application head expr, the type directing the
 -- argument inference, and a list of explicit arguments and their types. The values
