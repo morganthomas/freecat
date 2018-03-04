@@ -98,13 +98,22 @@ digestPattern' c rawE@(RawSymbolExpr pos s) et =
       c' <- augmentContext c s Nothing et Nothing []
       sym <- certainly (lookupSymbol c' s)
       return (SymbolExpr sym (Just pos), et, c')
-digestPattern' c0 e@(RawAppExpr pos e0 e1) et =
-  -- TODO: be able to infer implicit arguments in application patterns
-   do (e0d, e0dType, c1) <- digestPattern c0 e0
-      e1_expectedType <- domainType (ErrRawAppHeadIsNotFunctionTyped 3 e) e0dType
-      (e1d, e1dType, c2) <- digestPattern' c1 e1 e1_expectedType
-      appType <- inferAppType c2 e0d e0dType e1d e1dType
-      return ((AppExpr e0d e1d (Just pos)), appType, c2)
+digestPattern' c0 e@(RawAppExpr pos e0 e1) et = do
+  appHead <- rawApplicationHead e (ErrNotAllowed 439)
+  case appHead of
+    RawSymbolExpr pos s -> do
+      appHeadSym <- certainly $ lookupSymbol c0 s
+      (explicitArguments, cn) <- foldM
+        (\(args, ci) -> \(rawArg, argET) ->
+          do argET' <- evaluate ci argET -- TODO wrong
+             (ej, tj, cj) <- digestPattern' ci rawArg argET
+             return (args ++ [(ej,tj)], cj)) -- TODO: less consing
+        ([], c0)
+        (zip (rawApplicationArguments e) (explicitArgumentTypes (definedType appHeadSym)))
+      (appExpr, appType) <- inferArguments e cn appHeadSym explicitArguments
+      assertTypesMatch 1839 cn appExpr appType cn appExpr et
+      return (appExpr, et, cn)
+    _ -> barf (ErrNotAllowed 194)
 
 -- Infers the type of the given expr based on the context.
 inferType :: Context -> Expr -> FreeCat Expr
@@ -254,7 +263,7 @@ inferArguments :: RawExpr -> Context -> Symbol -> [(Expr, Expr)] -> FreeCat (Exp
 inferArguments appE c headSym args = do
   c' <- unifyArgumentTypesWithFunctionType appE c (definedType headSym) args
   e <- createApplicationExpr c' (SymbolExpr headSym Nothing) (definedType headSym) args
-  t <- inferType c e
+  t <- inferType c' e
   return (e, t)
 
 -- like inferArguments, but also takes an expected type et
