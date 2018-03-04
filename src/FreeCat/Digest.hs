@@ -99,6 +99,7 @@ digestPattern' c rawE@(RawSymbolExpr pos s) et =
       sym <- certainly (lookupSymbol c' s)
       return (SymbolExpr sym (Just pos), et, c')
 digestPattern' c0 e@(RawAppExpr pos e0 e1) et =
+  -- TODO: be able to infer implicit arguments in application patterns
    do (e0d, e0dType, c1) <- digestPattern c0 e0
       e1_expectedType <- domainType (ErrRawAppHeadIsNotFunctionTyped 3 e) e0dType
       (e1d, e1dType, c2) <- digestPattern' c1 e1 e1_expectedType
