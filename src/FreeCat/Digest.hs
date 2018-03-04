@@ -266,16 +266,10 @@ inferArguments' appE c headSym args et = do
 -- should take according to unification of et with the outmost matching codomain of t
 -- rawE is for error reporting only
 inferOuterImplicitArguments :: RawExpr -> Context -> Expr -> Expr -> Expr -> FreeCat Expr
-inferOuterImplicitArguments rawE c e t et =
-  if t == et
-   then return e
-   else case et of
-     ImplicitDependencyTypeExpr s b pos -> do
-       (argsToInfer, codomain) <- findMatchingImplicitCodomain t et
-       c' <- unifyExprWithExpr rawE c (et, codomain)
-       evaluate c' codomain
-     _ ->
-       barf (ErrTypeMismatch 420 c e t c e et)
+inferOuterImplicitArguments rawE c e t et = do
+   (argsToInfer, codomain) <- findMatchingImplicitCodomain t et
+   c' <- unifyExprWithExpr rawE c (et, codomain)
+   evaluate c' codomain
 
 findMatchingImplicitCodomain :: Expr -> Expr -> FreeCat ([Symbol], Expr)
 findMatchingImplicitCodomain e matches =
@@ -346,6 +340,7 @@ exprStructurallyExtends (DependentFunctionTypeExpr s@(Symbol { definedType = a }
 exprStructurallyExtends (ImplicitDependencyTypeExpr s@(Symbol { definedType = a }) b _)
                         (ImplicitDependencyTypeExpr t@(Symbol { definedType = c }) d _) =
   exprStructurallyExtends a c && exprStructurallyExtends b d
+exprStructurallyExtends _ _ = False
 
 -- Unifies the fst of the expr pair with the snd, augmenting the context by
 -- equating each free variable in the snd with its correlate in the fst. Throws
