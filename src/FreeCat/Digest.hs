@@ -269,7 +269,8 @@ inferOuterImplicitArguments :: RawExpr -> Context -> Expr -> Expr -> Expr -> Fre
 inferOuterImplicitArguments rawE c e t et = do
    (argsToInfer, codomain) <- findMatchingImplicitCodomain t et
    c' <- unifyExprWithExpr rawE c (et, codomain)
-   evaluate c' codomain
+   inferredArgs <- mapM (evaluate c') (Prelude.map (\sym -> SymbolExpr sym Nothing) argsToInfer)
+   return (Prelude.foldr (\e' arg -> ImplicitAppExpr e' arg Nothing) e inferredArgs)
 
 findMatchingImplicitCodomain :: Expr -> Expr -> FreeCat ([Symbol], Expr)
 findMatchingImplicitCodomain e matches =
