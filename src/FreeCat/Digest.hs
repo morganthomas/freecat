@@ -88,11 +88,11 @@ digestPattern c0 e@(RawAppExpr pos e0 e1) = do
 -- the case of an undeclared variable. It uses the expected type to infer
 -- the types of undeclared variables.
 digestPattern' :: Context -> RawExpr -> Expr -> FreeCat (Expr, Expr, Context)
-digestPattern' c (RawSymbolExpr pos s) et =
+digestPattern' c rawE@(RawSymbolExpr pos s) et =
    case lookupSymbol c s of
      Just sym ->
        let e = SymbolExpr sym (Just pos) in
-         do e' <- inferOuterImplicitArguments c e (definedType sym) et
+         do e' <- inferOuterImplicitArguments rawE c e (definedType sym) et
             return (e', et, c)
      Nothing -> do
       c' <- augmentContext c s Nothing et Nothing []
@@ -196,10 +196,10 @@ digestExpr c (RawImplicitDependencyTypeExpr pos s a b) =
 -- Like digestExpr, but instead of returning an inferred type, it takes
 -- an expected type et.
 digestExpr' :: Context -> RawExpr -> Expr -> FreeCat Expr
-digestExpr' c (RawSymbolExpr pos s) et =
+digestExpr' c rawE@(RawSymbolExpr pos s) et =
   case lookupSymbol c s of
     Just sym ->
-      inferOuterImplicitArguments c (SymbolExpr sym (Just pos)) (definedType sym) et
+      inferOuterImplicitArguments rawE c (SymbolExpr sym (Just pos)) (definedType sym) et
     Nothing -> barf (ErrSymbolNotDefined c (Just pos) s)
 digestExpr' c e@(RawAppExpr pos e0 e1) et = do
   appHead <- rawApplicationHead e (ErrRawAppHeadIsNotFunctionTyped 0 e)
@@ -260,24 +260,26 @@ inferArguments appE c headSym args = do
 inferArguments' :: RawExpr -> Context -> Symbol -> [(Expr, Expr)] -> Expr -> FreeCat Expr
 inferArguments' appE c headSym args et = do
   (e, t) <- inferArguments appE c headSym args
-  inferOuterImplicitArguments c e t et
+  inferOuterImplicitArguments appE c e t et
 
 -- makes t match et if this can be done by inferring implicit arguments e
 -- should take according to unification of et with the outmost matching codomain of t
-inferOuterImplicitArguments :: Context -> Expr -> Expr -> Expr -> FreeCat Expr
-inferOuterImplicitArguments c e t et =
+-- rawE is for error reporting only
+inferOuterImplicitArguments :: RawExpr -> Context -> Expr -> Expr -> Expr -> FreeCat Expr
+inferOuterImplicitArguments rawE c e t et =
   if t == et
    then return e
    else case et of
      ImplicitDependencyTypeExpr s b pos -> do
        (argsToInfer, codomain) <- findMatchingImplicitCodomain t et
-       return undefined
+       c' <- unifyExprWithExpr rawE c (et, codomain)
+       evaluate c' codomain
      _ ->
        barf (ErrTypeMismatch 420 c e t c e et)
 
 findMatchingImplicitCodomain :: Expr -> Expr -> FreeCat ([Symbol], Expr)
 findMatchingImplicitCodomain e matches =
-  if e == matches
+  if exprStructurallyExtends e matches
    then return ([], e)
    else case e of
      ImplicitDependencyTypeExpr s b pos -> do
@@ -317,6 +319,33 @@ unifyArgumentTypesWithFunctionType appE c fType args = do
     -- TODO: check the resulting types of the implicit arguments are correct
     return result
   else barf ErrWrongNumberOfArguments
+
+-- Tests whether the second expr structurally extends the first; that is
+-- a necessary, but not sufficient condition for unifiability.
+--
+-- Counterexample to structural extension implying unifiability:
+--   exprStructurallyExtends `(f a a)` `(f (g b) x)` == True
+--   but
+--   unifyExprWithExpr e c (`(f (g b) x)`, `(f a a)`)
+--   throws ErrCannotUnify
+-- (the ``ed expressions are FreeCat Exprs written in FreeCat syntax)
+exprStructurallyExtends :: Expr -> Expr -> Bool
+exprStructurallyExtends (SymbolExpr _ _) e = True
+exprStructurallyExtends (AppExpr a b _) (AppExpr c d _) =
+  exprStructurallyExtends a c && exprStructurallyExtends b d
+exprStructurallyExtends (ImplicitAppExpr a b _) (ImplicitAppExpr c d _) =
+  exprStructurallyExtends a c && exprStructurallyExtends b d
+exprStructurallyExtends (LambdaExpr _ s@(Symbol { definedType = a }) d _)
+                        (LambdaExpr _ t@(Symbol { definedType = b }) e _) =
+  exprStructurallyExtends a b && exprStructurallyExtends d e
+exprStructurallyExtends (FunctionTypeExpr a b _) (FunctionTypeExpr c d _) =
+  exprStructurallyExtends a c && exprStructurallyExtends b d
+exprStructurallyExtends (DependentFunctionTypeExpr s@(Symbol { definedType = a }) b _)
+                        (DependentFunctionTypeExpr t@(Symbol { definedType = c }) d _) =
+  exprStructurallyExtends a c && exprStructurallyExtends b d
+exprStructurallyExtends (ImplicitDependencyTypeExpr s@(Symbol { definedType = a }) b _)
+                        (ImplicitDependencyTypeExpr t@(Symbol { definedType = c }) d _) =
+  exprStructurallyExtends a c && exprStructurallyExtends b d
 
 -- Unifies the fst of the expr pair with the snd, augmenting the context by
 -- equating each free variable in the snd with its correlate in the fst. Throws
