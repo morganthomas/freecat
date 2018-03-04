@@ -119,7 +119,7 @@ inferType c e@(AppExpr f x _) = do
       assertTypesMatch 7 c x xt c x a
       c' <- augmentContext c (name s) (Just $ nativeContext s) a Nothing [constantDefinition s x]
       evaluate c' b
-    ImplicitDependencyTypeExpr s b _ -> barf ErrNotAllowed
+    ImplicitDependencyTypeExpr s b _ -> barf (ErrNotAllowed 1)
     _ -> barf (ErrAppHeadIsNotFunctionTyped 1 e ft)
 inferType c (ImplicitAppExpr f x _) = do
   ft <- inferType c f
@@ -129,7 +129,7 @@ inferType c (ImplicitAppExpr f x _) = do
       assertTypesMatch 8 c x xt c x a
       c' <- augmentContext c (name s) (Just $ nativeContext s) a Nothing [constantDefinition s x]
       evaluate c' b
-    _ -> barf ErrNotAllowed
+    _ -> barf (ErrNotAllowed 2)
 inferType c (LambdaExpr ctx s@(Symbol { definedType = a }) def pos) = do
   c' <- augmentContext c (name s) (Just $ nativeContext s) a Nothing []
   defType <- inferType c' def
@@ -267,20 +267,21 @@ inferArguments' appE c headSym args et = do
 -- rawE is for error reporting only
 inferOuterImplicitArguments :: RawExpr -> Context -> Expr -> Expr -> Expr -> FreeCat Expr
 inferOuterImplicitArguments rawE c e t et = do
-   (argsToInfer, codomain) <- findMatchingImplicitCodomain t et
+   (argsToInfer, codomain) <- findMatchingImplicitCodomain rawE c e t et
    c' <- unifyExprWithExpr rawE c (et, codomain)
    inferredArgs <- mapM (evaluate c' . (\sym -> SymbolExpr sym Nothing)) argsToInfer
    return (Prelude.foldr (\arg e' -> ImplicitAppExpr e' arg Nothing) e inferredArgs)
 
-findMatchingImplicitCodomain :: Expr -> Expr -> FreeCat ([Symbol], Expr)
-findMatchingImplicitCodomain e matches =
+-- rawE, c, f are for error reporting only
+findMatchingImplicitCodomain :: RawExpr -> Context -> Expr -> Expr -> Expr -> FreeCat ([Symbol], Expr)
+findMatchingImplicitCodomain rawE c f e matches =
   if exprStructurallyExtends e matches
    then return ([], e)
    else case e of
      ImplicitDependencyTypeExpr s b pos -> do
-       (args, cod) <- findMatchingImplicitCodomain b matches
+       (args, cod) <- findMatchingImplicitCodomain rawE c f b matches
        return (s:args, cod)
-     _ -> barf ErrNotAllowed
+     _ -> barf (ErrNoMatchingCodomain rawE c f e matches)
 
 -- Infers an application expr from an application head expr, the type directing the
 -- argument inference, and a list of explicit arguments and their types. The values

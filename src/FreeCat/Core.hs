@@ -20,6 +20,7 @@ data Error =
  | ErrExpectedLeadSymbolFoundLambda
  | ErrExpectedLeadSymbolFoundFunctionType
  | ErrSymbolNotDefined Context (Maybe SourcePos) String
+ | ErrNoMatchingCodomain RawExpr Context Expr Expr Expr
  | ErrAppHeadIsNotFunctionTyped Int Expr Expr
  | ErrRawAppHeadIsNotFunctionTyped Int RawExpr
  | ErrCannotInferImplicitArgumentValue
@@ -29,7 +30,7 @@ data Error =
  | ErrEquationWithoutMatchingTypeDeclaration
  | ErrWrongNumberOfArguments
  | ErrCannotUnify (Expr, Expr) (Expr, Expr) RawExpr
- | ErrNotAllowed -- TODO: replace with more specific errors
+ | ErrNotAllowed Int -- TODO: replace with more specific errors
 
 instance Show Error where
   show ErrFunctionTypeOnAppLHS = "Nonsense: function type on left hand side of function application expression."
@@ -42,6 +43,9 @@ instance Show Error where
     ++ "): head of function application doesn't have a function type in expression or pattern: " ++ show e
     ++ " and instead its head has type " ++ show t
   show (ErrRawAppHeadIsNotFunctionTyped n e) = "Type error (" ++ show n ++ "): raw head of function application doesn't have a function type in expression or pattern: " ++ show e
+  show (ErrNoMatchingCodomain rawE c e0 e1 e2) =
+    "No matching codomain: " ++ show rawE ++ ", " ++ show e0 ++ ", " ++ show e1
+      ++ ", " ++ show e2 ++ "\n\nContext:\n" ++ show c
   show (ErrTypeMismatch n c0 e0 t0 c1 e1 t1) =
     "Failed to match types (" ++ show n ++ "): "
     ++ "\n  " ++ show e0 ++ " : " ++ show t0
@@ -55,7 +59,7 @@ instance Show Error where
   show (ErrCannotUnify (e0, e1) (e0orig, e1orig) appE) = "Cannot unify " ++ show e0 ++ " with " ++ show e1
      ++ " which occurred while trying to unify " ++ show e0orig ++ " with " ++ show e1orig
      ++ " which came about while trying to infer the implicit argument values in " ++ show appE
-  show ErrNotAllowed = "Not allowed (TODO: more useful error message)"
+  show (ErrNotAllowed n) = "Not allowed (TODO: more useful error message) " ++ show n
 
 --
 -- Parse trees
